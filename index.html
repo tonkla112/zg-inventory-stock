@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ZG Inventory Stock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        brand: {
+          50:  '#E8F7F1',
+          100: '#D2EFE3',
+          200: '#A6DFC7',
+          300: '#65C7A1',
+          400: '#36B188',
+          500: '#1D9E75',
+          600: '#168862',
+          700: '#0F6E56',
+          800: '#0B5544',
+          900: '#073D33',
+        },
+        ink: {
+          DEFAULT: '#1A1A2E',
+          soft: '#374151',
+          mute: '#6B7280',
+          faint: '#9CA3AF',
+        },
+        line: '#E5E7EB',
+        line2: '#D1D5DB',
+        page: '#F8FAFB',
+        amber2: { bg:'#FAEEDA', fg:'#854F0B' },
+        danger: { bg:'#FCEBEB', fg:'#A32D2D' },
+        good:   { bg:'#E1F5EE', fg:'#0F6E56' },
+        info:   { bg:'#E3EEFB', fg:'#1E4E8C' },
+      },
+      fontFamily: {
+        sans: ['"IBM Plex Sans"','"IBM Plex Sans Thai"','system-ui','sans-serif'],
+        mono: ['"IBM Plex Mono"','ui-monospace','monospace'],
+      },
+      boxShadow: {
+        card: '0 0 0 1px rgba(229,231,235,1)',
+        pop:  '0 8px 24px -8px rgba(15,23,42,.12), 0 0 0 1px rgba(229,231,235,1)',
+      },
+      borderRadius: { card: '12px' },
+    }
+  }
+};
+</script>
+<style>
+html, body { background: #F8FAFB; color: #1A1A2E; }
+body { font-family: "IBM Plex Sans", "IBM Plex Sans Thai", system-ui, sans-serif; font-size: 15px; line-height: 1.6; }
+.font-th { font-family: "IBM Plex Sans Thai", "IBM Plex Sans", system-ui, sans-serif; }
+.kbd { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+.label-cap { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color:#6B7280; font-weight:500; }
+.scrollbar-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: #E5E7EB; border-radius: 8px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+input:focus, textarea:focus, select:focus { outline: none; }
+.focus-ring:focus { box-shadow: 0 0 0 2px rgba(29,158,117,.25); border-color:#1D9E75; }
+.row-hover:hover { background: #F9FAFB; }
+.checker {
+  background-image:
+    linear-gradient(45deg, #f1f5f9 25%, transparent 25%),
+    linear-gradient(-45deg, #f1f5f9 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #f1f5f9 75%),
+    linear-gradient(-45deg, transparent 75%, #f1f5f9 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+}
+@keyframes pulseDot { 0%,100% { opacity:1 } 50% { opacity:.35 } }
+.pulse-dot { animation: pulseDot 1.6s ease-in-out infinite; }
+
+/* ============ Dark mode ============ */
+html.dark, html.dark body { background: #0B0F12; color: #E5E7EB; }
+.dark .bg-white { background-color: #161B20 !important; }
+.dark .bg-page  { background-color: #0F1417 !important; }
+.dark .bg-page\/60 { background-color: rgba(15,20,23,0.6) !important; }
+.dark .border-line  { border-color: #232A31 !important; }
+.dark .border-line2 { border-color: #2E363E !important; }
+.dark .divide-line  > * + * { border-color: #232A31 !important; }
+.dark .divide-y > * + * { border-color: #232A31; }
+
+.dark .text-ink       { color: #E5E7EB !important; }
+.dark .text-ink-soft  { color: #C9CFD7 !important; }
+.dark .text-ink-mute  { color: #8B94A0 !important; }
+.dark .text-ink-faint { color: #5D6770 !important; }
+
+/* Brand tints */
+.dark .bg-brand-50  { background-color: rgba(29,158,117,0.16) !important; }
+.dark .bg-brand-100 { background-color: rgba(29,158,117,0.24) !important; }
+.dark .text-brand-700 { color: #5BC79B !important; }
+.dark .text-brand-800 { color: #7AD2AC !important; }
+.dark .text-brand-600 { color: #5BC79B !important; }
+.dark .border-brand-300 { border-color: #1D9E75 !important; }
+
+/* Semantic */
+.dark .bg-good-bg   { background-color: rgba(54,177,136,0.16) !important; }
+.dark .border-good-bg { border-color: rgba(54,177,136,0.30) !important; }
+.dark .text-good-fg { color: #6EE7B7 !important; }
+.dark .bg-danger-bg { background-color: rgba(239,68,68,0.16) !important; }
+.dark .border-danger-bg { border-color: rgba(239,68,68,0.30) !important; }
+.dark .text-danger-fg { color: #FCA5A5 !important; }
+.dark .bg-amber2-bg { background-color: rgba(245,158,11,0.18) !important; }
+.dark .border-amber2-bg { border-color: rgba(245,158,11,0.30) !important; }
+.dark .text-amber2-fg { color: #FCD34D !important; }
+.dark .bg-info-bg   { background-color: rgba(59,130,246,0.16) !important; }
+.dark .text-info-fg { color: #93C5FD !important; }
+
+/* Interactive */
+.dark .row-hover:hover { background-color: #1C232A !important; }
+.dark .hover\:bg-page:hover { background-color: #1C232A !important; }
+.dark .hover\:bg-brand-50:hover { background-color: rgba(29,158,117,0.18) !important; }
+.dark .hover\:bg-danger-bg:hover { background-color: rgba(239,68,68,0.18) !important; }
+
+/* Inputs in dark */
+.dark input, .dark select, .dark textarea { color: #E5E7EB; }
+.dark input::placeholder { color: #5D6770; }
+.dark .checker {
+  background-image:
+    linear-gradient(45deg, #1C232A 25%, transparent 25%),
+    linear-gradient(-45deg, #1C232A 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #1C232A 75%),
+    linear-gradient(-45deg, transparent 75%, #1C232A 75%);
+}
+.dark .focus-ring:focus,
+.dark .focus-within\:shadow-\[0_0_0_2px_rgba\(29\,158\,117\,\.18\)\]:focus-within {
+  box-shadow: 0 0 0 2px rgba(91,199,155,0.28) !important;
+}
+.dark kbd, .dark .border { border-color: #2E363E; }
+.dark ::selection { background: rgba(29,158,117,0.4); }
+
+/* Shadow tweaks */
+.dark .shadow-card { box-shadow: 0 0 0 1px #232A31 !important; }
+.dark .shadow-pop  { box-shadow: 0 10px 28px -8px rgba(0,0,0,.6), 0 0 0 1px #2E363E !important; }
+</style>
+</head>
+<body class="font-th">
+<div id="root"></div>
+
+<!-- Supabase JS SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<!-- App config: แก้ไข config.js ด้วย Supabase URL + Anon Key ของคุณ -->
+<script src="config.js"></script>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" data-presets="react" src="src/icons.jsx"></script>
+<script type="text/babel" data-presets="react" src="src/components.jsx"></script>
+<script type="text/babel" data-presets="react" src="src/data.jsx"></script>
+<script type="text/babel" data-presets="react" src="src/pages/dashboard.jsx"></script>
+<script type="text/babel" data-presets="react" src="src/pages/items.jsx"></script>
+<script type="text/babel" data-presets="react" src="src/pages/stockin.jsx"></script>
+<script type="text/babel" data-presets="react" src="src/pages/stockout.jsx"></script>
+<script type="text/babel" data-presets="react" src="src/pages/customers.jsx"></script>
+<script type="text/babel" data-presets="react" src="src/pages/reports.jsx"></script>
+<script type="text/babel" data-presets="react" src="src/pages/login.jsx"></script>
+<script type="text/babel" data-presets="react" src="src/app.jsx"></script>
+</body>
+</html>
