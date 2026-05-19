@@ -74,7 +74,7 @@ function LoginPage({ onLogin }) {
 
         <div className="relative flex items-center justify-between text-[11.5px] text-white/60">
           <span>© 2026 ZG Industries (Thailand) Limited</span>
-          <span className="kbd">Rayong Plant · EEC</span>
+          <span className="kbd">Rayong Plant · WHA</span>
         </div>
       </div>
 
