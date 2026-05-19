@@ -137,7 +137,7 @@ function SODetailModal({ so, items, customers, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose}/>
-      <div className="relative bg-surface rounded-card shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="relative bg-white rounded-card shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
         {/* Modal header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-line">
           <div>
@@ -145,7 +145,7 @@ function SODetailModal({ so, items, customers, onClose }) {
             <div className="text-[12px] text-ink-mute mt-0.5">Sale Order Detail — <span className="kbd">{so.id}</span></div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="info" size="sm" icon={<Icon.Printer size={14}/>} onClick={handlePrint}>พิมพ์</Button>
+            <Button variant="info" size="sm" icon={<Icon.Print size={14}/>} onClick={handlePrint}>พิมพ์</Button>
             <IconButton icon={<Icon.X size={16}/>} onClick={onClose}/>
           </div>
         </div>
@@ -176,8 +176,8 @@ function SODetailModal({ so, items, customers, onClose }) {
             </div>
             <div className="bg-page rounded-lg p-3 space-y-1">
               <div className="label-cap text-ink-faint">ลายเซ็น</div>
-              <div className={`inline-flex items-center gap-1.5 text-[12px] font-medium ${so.sig ? 'text-success-fg' : 'text-danger-fg'}`}>
-                <span className={`h-2 w-2 rounded-full ${so.sig ? 'bg-success-fg' : 'bg-danger-fg'}`}/>
+              <div className={`inline-flex items-center gap-1.5 text-[12px] font-medium ${so.sig ? 'text-good-fg' : 'text-danger-fg'}`}>
+                <span className={`h-2 w-2 rounded-full ${so.sig ? 'bg-good-fg' : 'bg-danger-fg'}`}/>
                 {so.sig ? 'มีลายเซ็น' : 'ยังไม่ได้เซ็น'}
               </div>
             </div>
@@ -444,7 +444,7 @@ function StockOutPage({ store }) {
       <Card padded={false} title="ประวัติใบเบิกสินค้า" subtitle="Recent sale orders">
         {recentSOs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-14 text-ink-faint gap-2">
-            <Icon.FileText size={32}/>
+            <Icon.PDF size={32}/>
             <p className="text-[13px]">ยังไม่มีใบเบิกสินค้า</p>
             <p className="text-[12px] text-ink-faint/60">สร้าง SO แรกด้านบน</p>
           </div>
@@ -481,8 +481,8 @@ function StockOutPage({ store }) {
                       <td className="px-3 py-2.5 text-right tabular-nums text-ink-mute">{so.lines.length}</td>
                       <td className="px-3 py-2.5 text-right kbd tabular-nums font-semibold">{fmtTHB(soNet)}</td>
                       <td className="px-3 py-2.5 text-center">
-                        <span className={`inline-flex items-center gap-1 text-[11.5px] font-medium px-2 py-0.5 rounded-full ${so.sig ? 'bg-success-subtle text-success-fg' : 'bg-danger-subtle text-danger-fg'}`}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${so.sig ? 'bg-success-fg' : 'bg-danger-fg'}`}/>
+                        <span className={`inline-flex items-center gap-1 text-[11.5px] font-medium px-2 py-0.5 rounded-full ${so.sig ? 'bg-good-bg text-good-fg' : 'bg-danger-bg text-danger-fg'}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${so.sig ? 'bg-good-fg' : 'bg-danger-fg'}`}/>
                           {so.sig ? 'มีลายเซ็น' : 'ยังไม่ได้เซ็น'}
                         </span>
                       </td>
@@ -490,7 +490,7 @@ function StockOutPage({ store }) {
                         <div className="inline-flex items-center gap-1">
                           <Button variant="soft" size="xs" icon={<Icon.Eye size={13}/>}
                             onClick={() => setViewSO(so)}>ดู</Button>
-                          <Button variant="ghost" size="xs" icon={<Icon.Printer size={13}/>}
+                          <Button variant="ghost" size="xs" icon={<Icon.Print size={13}/>}
                             onClick={() => {
                               const html = buildSOPrintHTML(so, state.items, state.customers);
                               printWindow(`ใบเบิกสินค้า ${so.id}`, html);
