@@ -239,5 +239,65 @@ function IconButton({ icon, onClick, tone='neutral', title, className='' }) {
   );
 }
 
+// ---- Export CSV utility
+function exportCSV(filename, headers, rows) {
+  const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const lines = [headers.map(esc).join(','), ...rows.map(r => r.map(esc).join(','))];
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'), { href: url, download: filename });
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ---- Print / PDF window utility
+function printWindow(title, bodyHtml) {
+  const w = window.open('', '_blank', 'width=940,height=720,scrollbars=yes');
+  if (!w) { Toast.push('เปิดหน้าพิมพ์ไม่ได้ — กรุณาอนุญาต popup ก่อน', 'danger'); return; }
+  w.document.write(`<!doctype html><html lang="th"><head><meta charset="utf-8">
+    <title>${title}</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: "IBM Plex Sans", "IBM Plex Sans Thai", system-ui, sans-serif; font-size: 13px; color: #111; padding: 32px; }
+      .zg-header { display:flex; justify-content:space-between; align-items:flex-start; padding-bottom:14px; border-bottom:2.5px solid #1D9E75; margin-bottom:18px; }
+      .zg-logo { font-size:18px; font-weight:700; color:#1D9E75; letter-spacing:-.3px; }
+      .zg-sub { color:#6B7280; font-size:11.5px; margin-top:3px; }
+      h2 { font-size:15px; font-weight:600; }
+      table { width:100%; border-collapse:collapse; margin-top:12px; font-size:12.5px; }
+      th { background:#F8FAFB; text-align:left; padding:8px 10px; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; border-bottom:1.5px solid #E5E7EB; color:#6B7280; }
+      td { padding:7px 10px; border-bottom:1px solid #E5E7EB; }
+      tfoot td { background:#F8FAFB; font-weight:600; border-top:2px solid #E5E7EB; }
+      .right { text-align:right; }
+      .mono { font-family:"IBM Plex Mono",monospace; }
+      .brand { color:#1D9E75; font-weight:600; }
+      .danger { color:#A32D2D; }
+      .good { color:#0F6E56; }
+      .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:11px; }
+      .badge-in { background:#E1F5EE; color:#0F6E56; }
+      .badge-out { background:#FCEBEB; color:#A32D2D; }
+      .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; font-size:12.5px; }
+      .info-item label { color:#6B7280; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; display:block; margin-bottom:2px; }
+      .zg-footer { margin-top:22px; text-align:right; font-size:11px; color:#9CA3AF; border-top:1px solid #E5E7EB; padding-top:8px; }
+      .print-btn { margin-top:16px; padding:9px 24px; background:#1D9E75; color:white; border:none; border-radius:7px; cursor:pointer; font-size:14px; font-weight:500; }
+      @media print { .print-btn { display:none; } }
+    </style>
+  </head><body>
+    <div class="zg-header">
+      <div>
+        <div class="zg-logo">ZG Inventory Stock</div>
+        <div class="zg-sub">ระบบจัดการคลังสินค้า · ZG Rayong Plant · WHA</div>
+      </div>
+      <div style="text-align:right">
+        <h2>${title}</h2>
+        <div class="zg-sub">พิมพ์วันที่ ${new Date().toLocaleDateString('th-TH',{day:'2-digit',month:'long',year:'numeric'})}</div>
+      </div>
+    </div>
+    ${bodyHtml}
+    <div class="zg-footer">ZG Industries (Thailand) Limited · Bangpakong Plant · ระบบจัดการคลังสินค้า v2.0</div>
+    <button class="print-btn" onclick="window.print()">🖨&nbsp; พิมพ์ / Print &nbsp;·&nbsp; กด Ctrl+P</button>
+  </body></html>`);
+  w.document.close();
+}
+
 // expose
-Object.assign(window, { Button, Card, Field, Input, Select, Badge, StockStatus, Tabs, Modal, Toast, PageHeader, KPI, Empty, IconButton });
+Object.assign(window, { Button, Card, Field, Input, Select, Badge, StockStatus, Tabs, Modal, Toast, PageHeader, KPI, Empty, IconButton, exportCSV, printWindow });

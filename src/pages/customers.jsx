@@ -3,6 +3,7 @@ function CustomersPage({ store }) {
   const { state, actions } = store;
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState(null);
+  const [viewCust, setViewCust] = useState(null);
 
   // order counts
   const counts = state.customers.map(c => {
@@ -78,7 +79,7 @@ function CustomersPage({ store }) {
                   <td className="px-5 py-3 text-right kbd tabular-nums">{fmtTHB(c.total)}</td>
                   <td className="px-5 py-3">
                     <div className="flex items-center justify-end gap-0.5">
-                      <IconButton title="ดูประวัติ" icon={<Icon.Eye size={15}/>}/>
+                      <IconButton title="ดูประวัติ" icon={<Icon.Eye size={15}/>} onClick={() => setViewCust(c)}/>
                       <IconButton title="แก้ไข" icon={<Icon.Edit size={15}/>} tone="brand" onClick={() => setEditing(c)}/>
                       <IconButton title="ลบ" icon={<Icon.Trash size={15}/>} tone="danger"
                         onClick={() => { if (confirm(`ลบผู้รับ ${c.code}?`)) { actions.delCust(c.code); Toast.push('ลบเรียบร้อย'); } }}/>
@@ -101,6 +102,12 @@ function CustomersPage({ store }) {
           else { actions.updCust(editing.code, c); Toast.push('บันทึกแล้ว'); }
           setEditing(null);
         }}/>}
+      {viewCust && <CustomerHistoryModal
+        cust={viewCust}
+        sos={state.sos}
+        items={state.items}
+        onClose={() => setViewCust(null)}
+      />}
     </div>
   );
 }
@@ -138,4 +145,82 @@ function CustomerEditor({ cust, nextCode, onClose, onSave }) {
   );
 }
 
-Object.assign(window, { CustomersPage, CustomerEditor });
+function CustomerHistoryModal({ cust, sos, items, onClose }) {
+  const itemMap = new Map(items.map(i => [i.code, i]));
+  const custSOs = sos.filter(s => s.custCode === cust.code).sort((a,b) => b.id.localeCompare(a.id));
+  const totalSpend = custSOs.reduce((sum, s) => {
+    const sub = s.lines.reduce((ls, l) => ls + (itemMap.get(l.code)?.sell || 0) * l.qty, 0);
+    return sum + sub + (s.shipping||0) - (s.discount||0);
+  }, 0);
+
+  return (
+    <Modal open onClose={onClose} title={`ประวัติการเบิก · ${cust.name}`} width="max-w-3xl">
+      <div className="space-y-4">
+        {/* Summary strip */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-lg bg-page border border-line p-3 text-center">
+            <div className="label-cap">ใบเบิกทั้งหมด</div>
+            <div className="kbd text-[22px] font-semibold mt-1">{custSOs.length}</div>
+          </div>
+          <div className="rounded-lg bg-page border border-line p-3 text-center">
+            <div className="label-cap">มูลค่ารวม</div>
+            <div className="kbd text-[18px] font-semibold mt-1 text-brand-700">{fmtTHB(totalSpend)}</div>
+          </div>
+          <div className="rounded-lg bg-page border border-line p-3 text-center">
+            <div className="label-cap">แผนก</div>
+            <div className="text-[13.5px] font-medium mt-1 truncate">{cust.dept || '—'}</div>
+          </div>
+        </div>
+
+        {/* SO list */}
+        {custSOs.length === 0 ? (
+          <Empty title="ยังไม่มีประวัติการเบิก" hint="ลูกค้ารายนี้ยังไม่เคยเบิกสินค้า"/>
+        ) : (
+          <div className="overflow-x-auto max-h-[420px] overflow-y-auto scrollbar-thin rounded-lg border border-line">
+            <table className="w-full text-[13px]">
+              <thead className="bg-page border-b border-line text-ink-mute sticky top-0">
+                <tr>
+                  <th className="text-left px-4 py-2.5 label-cap">เลขที่ SO</th>
+                  <th className="text-left px-4 py-2.5 label-cap">วันที่</th>
+                  <th className="text-left px-4 py-2.5 label-cap">รายการสินค้า</th>
+                  <th className="text-right px-4 py-2.5 label-cap">จำนวนเงิน</th>
+                  <th className="text-center px-4 py-2.5 label-cap">ลายเซ็น</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {custSOs.map(s => {
+                  const sub = s.lines.reduce((ls, l) => ls + (itemMap.get(l.code)?.sell || 0) * l.qty, 0);
+                  const net = sub + (s.shipping||0) - (s.discount||0);
+                  return (
+                    <tr key={s.id} className="row-hover">
+                      <td className="px-4 py-2.5"><span className="kbd text-[12px] font-semibold text-brand-700">{s.id}</span></td>
+                      <td className="px-4 py-2.5 text-ink-mute">{fmtDate(s.date)}</td>
+                      <td className="px-4 py-2.5">
+                        {s.lines.slice(0,2).map((l,i) => (
+                          <span key={i} className="mr-2 text-ink-soft">{itemMap.get(l.code)?.name || l.code} ×{l.qty}</span>
+                        ))}
+                        {s.lines.length > 2 && <span className="text-ink-faint">+{s.lines.length-2} รายการ</span>}
+                      </td>
+                      <td className="px-4 py-2.5 text-right kbd tabular-nums font-semibold">{fmtTHB(net)}</td>
+                      <td className="px-4 py-2.5 text-center">
+                        {s.sig
+                          ? <Badge tone="good" size="xs" icon={<Icon.Check size={10}/>}>เซ็นแล้ว</Badge>
+                          : <Badge tone="warn" size="xs">ยังไม่เซ็น</Badge>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className="flex justify-end">
+          <Button variant="secondary" onClick={onClose}>ปิด</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+Object.assign(window, { CustomersPage, CustomerEditor, CustomerHistoryModal });

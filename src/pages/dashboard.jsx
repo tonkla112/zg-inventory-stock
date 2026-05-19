@@ -1,6 +1,6 @@
 // Dashboard page
 function DashboardPage({ store, nav }) {
-  const { state, stockMap } = store;
+  const { state, stockMap, actions } = store;
   const today = todayISO();
   const todayPOs = state.pos.filter(p => p.date === today);
   const todaySOs = state.sos.filter(s => s.date === today);
@@ -39,8 +39,18 @@ function DashboardPage({ store, nav }) {
         subtitle={`ข้อมูล ณ วันที่ ${fmtDate(new Date())} • รวมรายการเคลื่อนไหว ${state.pos.length + state.sos.length} รายการ`}
         actions={
           <React.Fragment>
-            <Button variant="secondary" icon={<Icon.Refresh size={15}/>} size="sm">รีเฟรช</Button>
-            <Button variant="primary" icon={<Icon.Download size={15}/>} size="sm">ส่งออกรายงาน</Button>
+            <Button variant="secondary" icon={<Icon.Refresh size={15}/>} size="sm" onClick={() => { actions.reload(); Toast.push('รีโหลดข้อมูลแล้ว'); }}>รีเฟรช</Button>
+            <Button variant="primary" icon={<Icon.Download size={15}/>} size="sm" onClick={() => {
+                exportCSV(
+                  `ZG-Stock-Balance-${todayISO()}.csv`,
+                  ['รหัสสินค้า','ชื่อสินค้า (ไทย)','หน่วย','คงเหลือ','ราคาทุน (฿)','มูลค่ารวม (฿)'],
+                  state.items.map(i => {
+                    const qty = stockMap.get(i.code) || 0;
+                    return [i.code, i.name, i.unit, qty, i.buy, qty * i.buy];
+                  })
+                );
+                Toast.push('ส่งออก CSV เรียบร้อยแล้ว');
+              }}>ส่งออกรายงาน</Button>
           </React.Fragment>
         }
       />

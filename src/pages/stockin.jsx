@@ -143,7 +143,7 @@ function StockInPage({ store }) {
               value={search} onChange={e => setSearch(e.target.value)}/>
             <Input className="w-[160px]" type="date" prefix={<Icon.Calendar size={13}/>}
               value={dateFilter} onChange={e => setDateFilter(e.target.value)}/>
-            <Button variant="secondary" size="sm" icon={<Icon.Filter size={14}/>}>กรอง</Button>
+            <Button variant="secondary" size="sm" icon={<Icon.X size={14}/>} onClick={() => { setSearch(''); setDateFilter(''); }}>ล้างตัวกรอง</Button>
           </div>
         }>
         <div className="overflow-x-auto">
@@ -174,7 +174,26 @@ function StockInPage({ store }) {
                     <div className="inline-flex items-center gap-0.5">
                       <IconButton title="ดูรายละเอียด" icon={<Icon.Eye size={15}/>}/>
                       <IconButton title="พิมพ์ PDF" icon={<Icon.PDF size={15}/>} tone="brand"
-                        onClick={() => Toast.push(`สร้างเอกสาร ${p.id}.pdf`)}/>
+                        onClick={() => {
+                          const html = `
+                            <div class="info-grid">
+                              <div class="info-item"><label>เลขที่ PO</label><strong class="mono brand">${p.id}</strong></div>
+                              <div class="info-item"><label>วันที่</label><strong>${new Date(p.date).toLocaleDateString('th-TH',{day:'2-digit',month:'long',year:'numeric'})}</strong></div>
+                              <div class="info-item"><label>รหัสสินค้า</label><span class="mono">${p.code}</span></div>
+                              <div class="info-item"><label>หน่วย</label>${p.unit}</div>
+                            </div>
+                            <table>
+                              <thead><tr><th>ชื่อสินค้า</th><th class="right">จำนวน</th><th class="right">ราคาซื้อ (฿)</th><th class="right">จำนวนเงิน (฿)</th></tr></thead>
+                              <tbody><tr>
+                                <td>${p.name}</td>
+                                <td class="right mono">${p.qty} ${p.unit}</td>
+                                <td class="right mono">฿${Number(p.price).toLocaleString('th-TH',{minimumFractionDigits:2})}</td>
+                                <td class="right mono brand">฿${Number(p.price * p.qty).toLocaleString('th-TH',{minimumFractionDigits:2})}</td>
+                              </tr></tbody>
+                              <tfoot><tr><td colspan="3" class="right">ราคารวม</td><td class="right mono brand">฿${Number(p.price * p.qty).toLocaleString('th-TH',{minimumFractionDigits:2})}</td></tr></tfoot>
+                            </table>`;
+                          printWindow(`ใบรับสินค้า ${p.id}`, html);
+                        }}/>
                     </div>
                   </td>
                 </tr>

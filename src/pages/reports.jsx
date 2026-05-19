@@ -42,8 +42,68 @@ function ReportsPage({ store }) {
         subtitle="ยอดคงเหลือและประวัติการเคลื่อนไหวสินค้า"
         actions={
           <React.Fragment>
-            <Button variant="secondary" size="sm" icon={<Icon.CSV size={14}/>} onClick={() => Toast.push('ส่งออก CSV แล้ว')}>Export CSV</Button>
-            <Button variant="primary" size="sm" icon={<Icon.PDF size={14}/>} onClick={() => Toast.push('สร้าง PDF รายงานแล้ว')}>Export PDF</Button>
+            <Button variant="secondary" size="sm" icon={<Icon.CSV size={14}/>} onClick={() => {
+              if (tab === 'balance') {
+                exportCSV(
+                  ['รหัสสินค้า','ชื่อสินค้า','หน่วย','รับเข้ารวม','เบิกออกรวม','คงเหลือ','มูลค่า (฿)'],
+                  balanceRows.map(r => [r.code, r.name, r.unit, r.inQty, r.outQty, r.qty, r.value]),
+                  `ZG-Stock-Balance-${todayISO()}.csv`
+                );
+              } else {
+                exportCSV(
+                  ['วันที่','เลขที่เอกสาร','ประเภท','รหัสสินค้า','ชื่อสินค้า','คู่ค้า/แผนก','จำนวน','มูลค่า (฿)'],
+                  movement.map(m => [m.date, m.doc, m.kind==='in'?'รับเข้า':'เบิกออก', m.code, m.name, m.party, m.qty, m.amount]),
+                  `ZG-Movement-${todayISO()}.csv`
+                );
+              }
+              Toast.push('Export CSV เรียบร้อยแล้ว');
+            }}>Export CSV</Button>
+            <Button variant="primary" size="sm" icon={<Icon.PDF size={14}/>} onClick={() => {
+              if (tab === 'balance') {
+                const tableRows = balanceRows.map(r => `<tr>
+                  <td class="mono">${r.code}</td>
+                  <td>${r.name}</td>
+                  <td>${r.unit}</td>
+                  <td class="right mono good">+${r.inQty}</td>
+                  <td class="right mono danger">−${r.outQty}</td>
+                  <td class="right mono" style="font-weight:600">${r.qty}</td>
+                  <td class="right mono">฿${Number(r.value).toLocaleString('th-TH',{minimumFractionDigits:2})}</td>
+                </tr>`).join('');
+                const total = balanceRows.reduce((s,r)=>s+r.value,0);
+                printWindow('รายงานยอดคงเหลือสินค้า', `
+                  <table>
+                    <thead><tr>
+                      <th>รหัสสินค้า</th><th>ชื่อสินค้า</th><th>หน่วย</th>
+                      <th class="right">รับเข้า</th><th class="right">เบิกออก</th>
+                      <th class="right">คงเหลือ</th><th class="right">มูลค่า (฿)</th>
+                    </tr></thead>
+                    <tbody>${tableRows}</tbody>
+                    <tfoot><tr>
+                      <td colspan="6" class="right">รวมมูลค่าสต๊อกทั้งหมด</td>
+                      <td class="right mono brand">฿${Number(total).toLocaleString('th-TH',{minimumFractionDigits:2})}</td>
+                    </tr></tfoot>
+                  </table>`);
+              } else {
+                const tableRows = movement.map(m => `<tr>
+                  <td class="mono">${m.date}</td>
+                  <td class="mono brand">${m.doc}</td>
+                  <td><span class="badge ${m.kind==='in'?'badge-in':'badge-out'}">${m.kind==='in'?'รับเข้า':'เบิกออก'}</span></td>
+                  <td class="mono">${m.code}</td>
+                  <td>${m.name}</td>
+                  <td>${m.party}</td>
+                  <td class="right mono ${m.kind==='in'?'good':'danger'}">${m.kind==='in'?'+':'−'}${m.qty}</td>
+                  <td class="right mono">฿${Number(m.amount).toLocaleString('th-TH',{minimumFractionDigits:2})}</td>
+                </tr>`).join('');
+                printWindow('รายงานประวัติเคลื่อนไหวสินค้า', `
+                  <table>
+                    <thead><tr>
+                      <th>วันที่</th><th>เอกสาร</th><th>ประเภท</th><th>รหัสสินค้า</th>
+                      <th>ชื่อสินค้า</th><th>คู่ค้า/แผนก</th><th class="right">จำนวน</th><th class="right">มูลค่า (฿)</th>
+                    </tr></thead>
+                    <tbody>${tableRows}</tbody>
+                  </table>`);
+              }
+            }}>Export PDF</Button>
           </React.Fragment>
         }
       />
