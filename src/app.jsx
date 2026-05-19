@@ -148,7 +148,7 @@ function MainApp({ auth, onLogout, dark, setDark }) {
               <span className="text-[12px] font-medium">คลังออนไลน์</span>
             </div>
             <p className="text-[11px] text-ink-mute leading-snug">
-              ZG Bangpakong Plant<br/>
+              ZG Rayong Plant<br/>
               ปรับปรุงล่าสุด {new Date().toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' })}
             </p>
           </div>
@@ -239,7 +239,7 @@ function MainApp({ auth, onLogout, dark, setDark }) {
 
         <footer className="px-6 py-3 text-[11.5px] text-ink-faint border-t border-line bg-white flex items-center justify-between flex-wrap gap-2">
           <span>© 2026 ZG Inventory Stock · ระบบจัดการคลังสินค้าโรงงาน v2.0</span>
-          <span className="kbd">Bangpakong Plant · Supabase</span>
+          <span className="kbd">Rayong Plant · Supabase</span>
         </footer>
       </div>
 

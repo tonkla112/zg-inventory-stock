@@ -51,10 +51,10 @@ function LoginPage({ onLogin }) {
 
         <div className="relative">
           <h1 className="text-[34px] font-semibold leading-tight tracking-tight max-w-md">
-            ระบบจัดการคลังสินค้า<br/>โรงงาน ZG บางปะกง
+            ระบบจัดการคลังสินค้า<br/>โรงงาน ZG ระยอง
           </h1>
           <p className="mt-3 text-[15px] text-white/80 max-w-md">
-            Industrial inventory management for ZG Bangpakong Plant — receive, issue, and track stock across every workshop in real time.
+            Industrial inventory management for ZG Rayong Plant — receive, issue, and track stock across every workshop in real time.
           </p>
 
           <div className="mt-10 grid grid-cols-3 gap-3 max-w-md">
@@ -74,7 +74,7 @@ function LoginPage({ onLogin }) {
 
         <div className="relative flex items-center justify-between text-[11.5px] text-white/60">
           <span>© 2026 ZG Industries (Thailand) Limited</span>
-          <span className="kbd">Bangpakong Plant · EEC</span>
+          <span className="kbd">Rayong Plant · EEC</span>
         </div>
       </div>
 
