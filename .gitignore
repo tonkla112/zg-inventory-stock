@@ -1,0 +1,23 @@
+# Claude Code local settings
+.claude/
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment / secrets (ห้าม commit)
+.env
+.env.local
+.env.*.local
+secrets.js
+
+# Node (ถ้าใช้ในอนาคต)
+node_modules/
+npm-debug.log*
