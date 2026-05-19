@@ -1,5 +1,36 @@
 // App shell — Supabase auth + sidebar + topbar + page router
 
+// ---- Error boundary (class component required by React) ----
+class AppErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-page gap-4 p-8">
+          <div className="h-12 w-12 rounded-xl bg-danger-fg flex items-center justify-center text-white shadow-card">
+            <Icon.Warn size={22}/>
+          </div>
+          <div className="text-[17px] font-semibold text-ink">ระบบขัดข้อง / System Error</div>
+          <div className="text-[13px] text-ink-mute max-w-md text-center leading-relaxed">
+            {this.state.error.message || 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ'}
+          </div>
+          <button onClick={() => window.location.reload()}
+            className="mt-2 px-5 py-2.5 bg-brand-500 text-white rounded-lg text-[14px] font-medium hover:bg-brand-600">
+            รีโหลดหน้า / Reload
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // ---- Loading screen ----
 function Loader({ text }) {
   return (
@@ -22,20 +53,8 @@ function MainApp({ auth, onLogout, dark, setDark }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  useEffect(() => {
-    if (!userMenuOpen) return;
-    function onDoc(e) {
-      if (!e.target.closest?.('[data-user-menu]')) setUserMenuOpen(false);
-    }
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [userMenuOpen]);
-
-  if (!store.ready) return <Loader text="กำลังโหลดข้อมูลจาก Database..."/>;
-
+  // Compute role + nav before any hooks that depend on them
   const role = auth.role;
-  const can = { write: role !== 'viewer', settings: role === 'admin' };
-
   const nav = [
     { key:'dashboard', th:'ภาพรวม',     en:'Dashboard',  icon:<Icon.Dashboard size={17}/> },
     { key:'items',     th:'สินค้า',      en:'Items',      icon:<Icon.Box size={17}/>,    badge: store.state.items.length },
@@ -45,9 +64,24 @@ function MainApp({ auth, onLogout, dark, setDark }) {
     { key:'reports',   th:'รายงาน',      en:'Reports',    icon:<Icon.Chart size={17}/> },
   ].filter(n => !n.roles || n.roles.includes(role));
 
+  // ALL hooks must be called in the same order every render — before any early returns
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    function onDoc(e) {
+      if (!e.target.closest?.('[data-user-menu]')) setUserMenuOpen(false);
+    }
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [userMenuOpen]);
+
   useEffect(() => {
     if (!nav.find(n => n.key === page)) setPage('dashboard');
   }, [role]);
+
+  // Early return is safe now — all hooks have already been called above
+  if (!store.ready) return <Loader text="กำลังโหลดข้อมูลจาก Database..."/>;
+
+  const can = { write: role !== 'viewer', settings: role === 'admin' };
 
   const pageEl = (() => {
     switch (page) {
@@ -63,6 +97,7 @@ function MainApp({ auth, onLogout, dark, setDark }) {
 
   const currentNav = nav.find(n => n.key === page);
   const outOfStockCount = store.state.items.filter(i => (store.stockMap.get(i.code) || 0) === 0).length;
+  const displayName = (auth.name || auth.email || 'User').replace('คุณ','').trim() || 'U';
 
   return (
     <div className="min-h-screen flex" data-screen-label={`ZG Inventory · ${currentNav?.en}`}>
@@ -160,7 +195,7 @@ function MainApp({ auth, onLogout, dark, setDark }) {
             <button onClick={() => setUserMenuOpen(o => !o)} className="flex items-center gap-2.5 hover:bg-page rounded-lg pr-1 -mr-1 transition-colors">
               <div className={`h-8 w-8 rounded-full text-white flex items-center justify-center text-[12px] font-semibold ${
                 role==='admin'?'bg-brand-600':role==='staff'?'bg-info-fg':'bg-amber2-fg'}`}>
-                {(auth.name || auth.email).replace('คุณ','').trim().charAt(0).toUpperCase()}
+                {displayName.charAt(0).toUpperCase()}
               </div>
               <div className="hidden md:block leading-tight text-left">
                 <div className="text-[13px] font-medium">{auth.name || auth.email}</div>
@@ -239,8 +274,8 @@ function App() {
       const u = session.user;
       return {
         role:  u.user_metadata?.role  || 'viewer',
-        name:  u.user_metadata?.name  || u.email,
-        email: u.email,
+        name:  u.user_metadata?.name  || u.email || '',
+        email: u.email || '',
         pos:   u.user_metadata?.pos   || '',
         dept:  u.user_metadata?.dept  || '',
       };
@@ -274,4 +309,8 @@ function App() {
   return <MainApp auth={auth} onLogout={doLogout} dark={dark} setDark={setDark}/>;
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <AppErrorBoundary>
+    <App/>
+  </AppErrorBoundary>
+);
