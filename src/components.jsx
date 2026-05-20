@@ -293,7 +293,7 @@ function printWindow(title, bodyHtml) {
       </div>
     </div>
     ${bodyHtml}
-    <div class="zg-footer">ZG Industries (Thailand) Limited · Bangpakong Plant · ระบบจัดการคลังสินค้า v2.0</div>
+    <div class="zg-footer">ZG Industries (Thailand) Limited · Rayong Plant · ระบบจัดการคลังสินค้า v2.0</div>
     <button class="print-btn" onclick="window.print()">🖨&nbsp; พิมพ์ / Print &nbsp;·&nbsp; กด Ctrl+P</button>
   </body></html>`);
   w.document.close();
