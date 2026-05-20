@@ -47,11 +47,13 @@ function Loader({ text }) {
 }
 
 // ---- Authenticated shell (mounts store only when logged in) ----
-function MainApp({ auth, onLogout, dark, setDark }) {
+function MainApp({ auth, onLogout, dark, setDark, lang, setLang }) {
   const store = useStore();
   const [page, setPage] = useState('dashboard');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+
+  const t = (th, en) => lang === 'en' ? en : th;
 
   // Compute role + nav before any hooks that depend on them
   const role = auth.role;
@@ -85,12 +87,12 @@ function MainApp({ auth, onLogout, dark, setDark }) {
 
   const pageEl = (() => {
     switch (page) {
-      case 'dashboard': return <DashboardPage store={store} nav={setPage}/>;
-      case 'items':     return <ItemsPage store={store}/>;
-      case 'stockin':   return <StockInPage store={store}/>;
-      case 'stockout':  return <StockOutPage store={store}/>;
-      case 'customers': return <CustomersPage store={store}/>;
-      case 'reports':   return <ReportsPage store={store}/>;
+      case 'dashboard': return <DashboardPage store={store} nav={setPage} lang={lang}/>;
+      case 'items':     return <ItemsPage store={store} lang={lang}/>;
+      case 'stockin':   return <StockInPage store={store} lang={lang}/>;
+      case 'stockout':  return <StockOutPage store={store} lang={lang}/>;
+      case 'customers': return <CustomersPage store={store} lang={lang}/>;
+      case 'reports':   return <ReportsPage store={store} lang={lang}/>;
       default: return null;
     }
   })();
@@ -114,14 +116,14 @@ function MainApp({ auth, onLogout, dark, setDark }) {
         </div>
 
         <nav className="p-3 flex-1 overflow-y-auto scrollbar-thin">
-          <div className="label-cap mb-1.5 px-2">เมนูหลัก / Main</div>
+          <div className="label-cap mb-1.5 px-2">{t('เมนูหลัก', 'Main Menu')}</div>
           <ul className="space-y-0.5">
             {nav.map(n => (
               <li key={n.key}>
                 <button onClick={() => { setPage(n.key); setMobileOpen(false); }}
                   className={`w-full h-10 px-2.5 rounded-lg flex items-center gap-2.5 text-[14px] transition-colors ${page===n.key ? 'bg-brand-50 text-brand-700 font-medium' : 'text-ink-soft hover:bg-page'}`}>
                   <span className={page===n.key ? 'text-brand-600' : 'text-ink-mute'}>{n.icon}</span>
-                  <span className="flex-1 text-left">{n.th}</span>
+                  <span className="flex-1 text-left">{lang === 'en' ? n.en : n.th}</span>
                   {typeof n.badge === 'number' && (
                     <span className="kbd text-[10.5px] text-ink-faint">{n.badge}</span>
                   )}
@@ -130,12 +132,12 @@ function MainApp({ auth, onLogout, dark, setDark }) {
             ))}
           </ul>
 
-          <div className="label-cap mb-1.5 px-2 mt-5">ระบบ / System</div>
+          <div className="label-cap mb-1.5 px-2 mt-5">{t('ระบบ', 'System')}</div>
           <ul className="space-y-0.5">
             <li>
               <button onClick={() => store.actions.reload()}
                 className="w-full h-10 px-2.5 rounded-lg flex items-center gap-2.5 text-[14px] text-ink-soft hover:bg-page">
-                <Icon.Refresh size={17} className="text-ink-mute"/><span>รีโหลดข้อมูล</span>
+                <Icon.Refresh size={17} className="text-ink-mute"/><span>{t('รีโหลดข้อมูล', 'Reload Data')}</span>
               </button>
             </li>
           </ul>
@@ -145,11 +147,11 @@ function MainApp({ auth, onLogout, dark, setDark }) {
           <div className="rounded-lg bg-page border border-line p-3">
             <div className="flex items-center gap-2 mb-1.5">
               <span className="h-2 w-2 rounded-full bg-brand-500 pulse-dot"/>
-              <span className="text-[12px] font-medium">คลังออนไลน์</span>
+              <span className="text-[12px] font-medium">{t('คลังออนไลน์', 'Online Warehouse')}</span>
             </div>
             <p className="text-[11px] text-ink-mute leading-snug">
               ZG Rayong Plant<br/>
-              ปรับปรุงล่าสุด {new Date().toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' })}
+              {t('ปรับปรุงล่าสุด', 'Last updated')} {new Date().toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' })}
             </p>
           </div>
         </div>
@@ -168,14 +170,14 @@ function MainApp({ auth, onLogout, dark, setDark }) {
             <Icon.Dashboard size={14}/>
             <span>ZG Inventory</span>
             <Icon.ChevronRight size={13} className="text-ink-faint"/>
-            <span className="text-ink font-medium">{currentNav?.th}</span>
+            <span className="text-ink font-medium">{lang === 'en' ? currentNav?.en : currentNav?.th}</span>
           </div>
 
           <div className="flex-1"/>
 
           <div className="hidden md:flex items-center gap-1 px-3 h-9 border border-line2 rounded-lg bg-white w-[280px]">
             <Icon.Search size={14} className="text-ink-mute"/>
-            <input placeholder="ค้นหาสินค้า, PO, SO หรือผู้รับ..." className="flex-1 bg-transparent text-[13px] placeholder:text-ink-faint"/>
+            <input placeholder={t('ค้นหาสินค้า, PO, SO หรือผู้รับ...', 'Search items, PO, SO or recipient...')} className="flex-1 bg-transparent text-[13px] placeholder:text-ink-faint"/>
             <kbd className="kbd text-[10px] px-1.5 py-0.5 rounded border border-line text-ink-mute">⌘K</kbd>
           </div>
 
@@ -186,8 +188,18 @@ function MainApp({ auth, onLogout, dark, setDark }) {
             )}
           </button>
 
+          {/* Language toggle */}
+          <button
+            onClick={() => setLang(l => l === 'th' ? 'en' : 'th')}
+            className="flex items-center gap-0.5 h-8 px-2 rounded-lg border border-line hover:bg-page transition-colors"
+            title={lang === 'th' ? 'Switch to English' : 'เปลี่ยนเป็นภาษาไทย'}>
+            <span className={`text-[11.5px] font-semibold px-1 ${lang === 'th' ? 'text-brand-700' : 'text-ink-faint'}`}>TH</span>
+            <span className="text-ink-faint text-[11px]">|</span>
+            <span className={`text-[11.5px] font-semibold px-1 ${lang === 'en' ? 'text-brand-700' : 'text-ink-faint'}`}>EN</span>
+          </button>
+
           <button onClick={() => setDark(d => !d)} className="p-2 rounded-lg text-ink-mute hover:bg-page"
-            title={dark ? 'สลับเป็นโหมดสว่าง' : 'สลับเป็นโหมดมืด'}>
+            title={dark ? t('สลับเป็นโหมดสว่าง', 'Switch to Light Mode') : t('สลับเป็นโหมดมืด', 'Switch to Dark Mode')}>
             {dark ? <Icon.Sun size={17}/> : <Icon.Moon size={17}/>}
           </button>
 
@@ -217,15 +229,15 @@ function MainApp({ auth, onLogout, dark, setDark }) {
                   </div>
                 </div>
                 <ul className="py-1.5">
-                  <li><button className="w-full px-4 h-9 text-left text-[13.5px] hover:bg-page flex items-center gap-2.5"><Icon.User size={14} className="text-ink-mute"/>โปรไฟล์ของฉัน</button></li>
+                  <li><button className="w-full px-4 h-9 text-left text-[13.5px] hover:bg-page flex items-center gap-2.5"><Icon.User size={14} className="text-ink-mute"/>{t('โปรไฟล์ของฉัน', 'My Profile')}</button></li>
                   <li><button className="w-full px-4 h-9 text-left text-[13.5px] hover:bg-page flex items-center gap-2.5" onClick={() => setDark(d => !d)}>
                     {dark ? <Icon.Sun size={14} className="text-ink-mute"/> : <Icon.Moon size={14} className="text-ink-mute"/>}
-                    {dark ? 'โหมดสว่าง' : 'โหมดมืด'}
+                    {dark ? t('โหมดสว่าง', 'Light Mode') : t('โหมดมืด', 'Dark Mode')}
                   </button></li>
                 </ul>
                 <div className="border-t border-line py-1.5">
                   <button onClick={onLogout} className="w-full px-4 h-9 text-left text-[13.5px] hover:bg-danger-bg hover:text-danger-fg flex items-center gap-2.5 text-danger-fg">
-                    <Icon.Logout size={14}/>ออกจากระบบ / Sign out
+                    <Icon.Logout size={14}/>{t('ออกจากระบบ', 'Sign out')}
                   </button>
                 </div>
               </div>
@@ -238,7 +250,7 @@ function MainApp({ auth, onLogout, dark, setDark }) {
         </main>
 
         <footer className="px-6 py-3 text-[11.5px] text-ink-faint border-t border-line bg-white flex items-center justify-between flex-wrap gap-2">
-          <span>© 2026 ZG Inventory Stock · ระบบจัดการคลังสินค้าโรงงาน v2.0</span>
+          <span>© 2026 ZG Inventory Stock · {t('ระบบจัดการคลังสินค้าโรงงาน', 'Warehouse Management System')} v2.0</span>
           <span className="kbd">Rayong Plant · Supabase</span>
         </footer>
       </div>
@@ -264,6 +276,13 @@ function App() {
     document.documentElement.classList.toggle('dark', dark);
     try { localStorage.setItem('zg-theme', dark ? 'dark' : 'light'); } catch(e) {}
   }, [dark]);
+
+  const [lang, setLang] = useState(() => {
+    try { return localStorage.getItem('zg-lang') || 'th'; } catch(e) { return 'th'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('zg-lang', lang); } catch(e) {}
+  }, [lang]);
 
   // Supabase auth listener
   useEffect(() => {
@@ -306,7 +325,7 @@ function App() {
   if (authLoading) return <Loader text="กำลังตรวจสอบสิทธิ์..."/>;
   if (!auth)       return <LoginPage onLogin={doLogin}/>;
 
-  return <MainApp auth={auth} onLogout={doLogout} dark={dark} setDark={setDark}/>;
+  return <MainApp auth={auth} onLogout={doLogout} dark={dark} setDark={setDark} lang={lang} setLang={setLang}/>;
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(

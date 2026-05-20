@@ -3,7 +3,8 @@
 const PAGE_SIZE = 15;
 
 // ─── ItemDetailModal ──────────────────────────────────────────────────────────
-function ItemDetailModal({ item, stockMap, pos, sos, customers, onClose }) {
+function ItemDetailModal({ item, stockMap, pos, sos, customers, onClose, lang }) {
+  const t = (th, en) => lang === 'en' ? en : th;
   const qty = stockMap.get(item.code) || 0;
 
   // Last 10 purchase orders that contain this item
@@ -47,9 +48,9 @@ function ItemDetailModal({ item, stockMap, pos, sos, customers, onClose }) {
   }, [sos, customers, item.code, item.sell]);
 
   return (
-    <Modal open onClose={onClose} title={`รายละเอียดสินค้า · ${item.code}`} width="max-w-3xl"
+    <Modal open onClose={onClose} title={`${t('รายละเอียดสินค้า', 'Item Details')} · ${item.code}`} width="max-w-3xl"
       footer={
-        <Button variant="ghost" onClick={onClose}>ปิด</Button>
+        <Button variant="ghost" onClick={onClose}>{t('ปิด', 'Close')}</Button>
       }>
       <div className="space-y-5">
 
@@ -62,25 +63,25 @@ function ItemDetailModal({ item, stockMap, pos, sos, customers, onClose }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="kbd text-[12.5px] text-ink-soft">{item.code}</span>
-              <StockStatus qty={qty}/>
+              <StockStatus qty={qty} lang={lang}/>
             </div>
             <div className="font-semibold text-[15px] mt-0.5">{item.name}</div>
             {item.nameEn && <div className="text-[12.5px] text-ink-faint">{item.nameEn}</div>}
             <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div>
-                <div className="label-cap text-ink-faint mb-0.5">หน่วย</div>
+                <div className="label-cap text-ink-faint mb-0.5">{t('หน่วย', 'Unit')}</div>
                 <div className="font-medium">{item.unit}</div>
               </div>
               <div>
-                <div className="label-cap text-ink-faint mb-0.5">คงเหลือ</div>
+                <div className="label-cap text-ink-faint mb-0.5">{t('คงเหลือ', 'In Stock')}</div>
                 <div className="font-semibold tabular-nums text-[15px]">{fmtInt(qty)}</div>
               </div>
               <div>
-                <div className="label-cap text-ink-faint mb-0.5">ราคาซื้อ</div>
+                <div className="label-cap text-ink-faint mb-0.5">{t('ราคาซื้อ', 'Buy Price')}</div>
                 <div className="kbd tabular-nums">{fmtTHB(item.buy)}</div>
               </div>
               <div>
-                <div className="label-cap text-ink-faint mb-0.5">ราคาขาย</div>
+                <div className="label-cap text-ink-faint mb-0.5">{t('ราคาขาย', 'Sell Price')}</div>
                 <div className="kbd tabular-nums">{fmtTHB(item.sell)}</div>
               </div>
             </div>
@@ -89,21 +90,21 @@ function ItemDetailModal({ item, stockMap, pos, sos, customers, onClose }) {
 
         {/* Purchase history */}
         <div>
-          <div className="label-cap text-ink-mute mb-2">ประวัติการสั่งซื้อล่าสุด 10 รายการ (PO)</div>
+          <div className="label-cap text-ink-mute mb-2">{t('ประวัติการสั่งซื้อล่าสุด 10 รายการ (PO)', 'Last 10 Purchase Orders (PO)')}</div>
           {poHistory.length === 0 ? (
             <div className="text-[12.5px] text-ink-faint py-4 text-center border border-dashed border-line rounded-lg">
-              ยังไม่มีประวัติการสั่งซื้อ
+              {t('ยังไม่มีประวัติการสั่งซื้อ', 'No purchase history yet')}
             </div>
           ) : (
             <div className="overflow-x-auto scrollbar-thin rounded-lg border border-line">
               <table className="w-full text-[13px]">
                 <thead className="bg-page border-b border-line text-ink-mute">
                   <tr>
-                    <th className="px-4 py-2 label-cap text-left">เลขที่ PO</th>
-                    <th className="px-4 py-2 label-cap text-left">วันที่</th>
-                    <th className="px-4 py-2 label-cap text-right">จำนวน</th>
-                    <th className="px-4 py-2 label-cap text-right">ราคา/หน่วย</th>
-                    <th className="px-4 py-2 label-cap text-right">รวม</th>
+                    <th className="px-4 py-2 label-cap text-left">{t('เลขที่ PO', 'PO No.')}</th>
+                    <th className="px-4 py-2 label-cap text-left">{t('วันที่', 'Date')}</th>
+                    <th className="px-4 py-2 label-cap text-right">{t('จำนวน', 'Qty')}</th>
+                    <th className="px-4 py-2 label-cap text-right">{t('ราคา/หน่วย', 'Price/Unit')}</th>
+                    <th className="px-4 py-2 label-cap text-right">{t('รวม', 'Total')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
@@ -124,22 +125,22 @@ function ItemDetailModal({ item, stockMap, pos, sos, customers, onClose }) {
 
         {/* Withdrawal / SO history */}
         <div>
-          <div className="label-cap text-ink-mute mb-2">ประวัติการเบิก/ขายล่าสุด 10 รายการ (SO)</div>
+          <div className="label-cap text-ink-mute mb-2">{t('ประวัติการเบิก/ขายล่าสุด 10 รายการ (SO)', 'Last 10 Sales / Withdrawals (SO)')}</div>
           {soHistory.length === 0 ? (
             <div className="text-[12.5px] text-ink-faint py-4 text-center border border-dashed border-line rounded-lg">
-              ยังไม่มีประวัติการเบิก/ขาย
+              {t('ยังไม่มีประวัติการเบิก/ขาย', 'No sales / withdrawal history yet')}
             </div>
           ) : (
             <div className="overflow-x-auto scrollbar-thin rounded-lg border border-line">
               <table className="w-full text-[13px]">
                 <thead className="bg-page border-b border-line text-ink-mute">
                   <tr>
-                    <th className="px-4 py-2 label-cap text-left">เลขที่ SO</th>
-                    <th className="px-4 py-2 label-cap text-left">วันที่</th>
-                    <th className="px-4 py-2 label-cap text-left">ลูกค้า / แผนก</th>
-                    <th className="px-4 py-2 label-cap text-right">จำนวน</th>
-                    <th className="px-4 py-2 label-cap text-right">ราคา/หน่วย</th>
-                    <th className="px-4 py-2 label-cap text-right">รวม</th>
+                    <th className="px-4 py-2 label-cap text-left">{t('เลขที่ SO', 'SO No.')}</th>
+                    <th className="px-4 py-2 label-cap text-left">{t('วันที่', 'Date')}</th>
+                    <th className="px-4 py-2 label-cap text-left">{t('ลูกค้า / แผนก', 'Customer / Dept.')}</th>
+                    <th className="px-4 py-2 label-cap text-right">{t('จำนวน', 'Qty')}</th>
+                    <th className="px-4 py-2 label-cap text-right">{t('ราคา/หน่วย', 'Price/Unit')}</th>
+                    <th className="px-4 py-2 label-cap text-right">{t('รวม', 'Total')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
@@ -165,7 +166,8 @@ function ItemDetailModal({ item, stockMap, pos, sos, customers, onClose }) {
 }
 
 // ─── ItemsPage ────────────────────────────────────────────────────────────────
-function ItemsPage({ store }) {
+function ItemsPage({ store, lang }) {
+  const t = (th, en) => lang === 'en' ? en : th;
   const { state, stockMap, actions } = store;
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('all');
@@ -222,12 +224,12 @@ function ItemsPage({ store }) {
     <div className="space-y-5">
       <PageHeader
         title="Items"
-        titleTh="สินค้า"
-        subtitle="จัดการรายการสินค้าและสต๊อกคงเหลือ"
+        titleTh={t('สินค้า', 'Items')}
+        subtitle={t('จัดการรายการสินค้าและสต๊อกคงเหลือ', 'Manage items and current stock levels')}
         actions={
           <React.Fragment>
-            <Button variant="secondary" icon={<Icon.QR size={15}/>} size="sm" onClick={() => setScanOpen(true)}>สแกน QR / Barcode</Button>
-            <Button variant="primary" icon={<Icon.Plus size={15}/>} size="sm" onClick={() => setEditing('new')}>เพิ่มสินค้า</Button>
+            <Button variant="secondary" icon={<Icon.QR size={15}/>} size="sm" onClick={() => setScanOpen(true)}>{t('สแกน QR / Barcode', 'Scan QR / Barcode')}</Button>
+            <Button variant="primary" icon={<Icon.Plus size={15}/>} size="sm" onClick={() => setEditing('new')}>{t('เพิ่มสินค้า', 'Add Item')}</Button>
           </React.Fragment>
         }
       />
@@ -237,29 +239,29 @@ function ItemsPage({ store }) {
           <Input
             className="w-full sm:w-[320px]"
             prefix={<Icon.Search size={14}/>}
-            placeholder="ค้นหารหัสหรือชื่อสินค้า..."
+            placeholder={t('ค้นหารหัสหรือชื่อสินค้า...', 'Search by code or name...')}
             value={q} onChange={e => setQ(e.target.value)}/>
           <Select value={filter} onChange={e => setFilter(e.target.value)} className="w-[180px]">
-            <option value="all">ทุกสถานะ ({counts.all})</option>
-            <option value="ok">สต๊อกปกติ ({counts.ok})</option>
-            <option value="low">ใกล้หมด ({counts.low})</option>
-            <option value="zero">หมดสต๊อก ({counts.zero})</option>
+            <option value="all">{t('ทุกสถานะ', 'All Status')} ({counts.all})</option>
+            <option value="ok">{t('สต๊อกปกติ', 'In Stock')} ({counts.ok})</option>
+            <option value="low">{t('ใกล้หมด', 'Low Stock')} ({counts.low})</option>
+            <option value="zero">{t('หมดสต๊อก', 'Out of Stock')} ({counts.zero})</option>
           </Select>
           <div className="flex-1"/>
-          <span className="text-[12.5px] text-ink-mute">แสดง {filtered.length}/{counts.all} รายการ</span>
+          <span className="text-[12.5px] text-ink-mute">{t('แสดง', 'Showing')} {filtered.length}/{counts.all} {t('รายการ', 'items')}</span>
         </div>
 
         <div className="overflow-x-auto scrollbar-thin">
           <table className="w-full text-[13.5px]">
             <thead className="bg-page border-b border-line text-ink-mute">
               <tr>
-                <SortHead k="code">รหัสสินค้า</SortHead>
-                <SortHead k="name">ชื่อสินค้า</SortHead>
-                <th className="px-5 py-2.5 label-cap text-left">หน่วย</th>
-                <SortHead k="buy" align="right">ราคาซื้อ</SortHead>
-                <SortHead k="sell" align="right">ราคาขาย</SortHead>
-                <SortHead k="qty" align="right">คงเหลือ</SortHead>
-                <th className="px-5 py-2.5 label-cap text-left">สถานะ</th>
+                <SortHead k="code">{t('รหัสสินค้า', 'Item Code')}</SortHead>
+                <SortHead k="name">{t('ชื่อสินค้า', 'Item Name')}</SortHead>
+                <th className="px-5 py-2.5 label-cap text-left">{t('หน่วย', 'Unit')}</th>
+                <SortHead k="buy" align="right">{t('ราคาซื้อ', 'Buy Price')}</SortHead>
+                <SortHead k="sell" align="right">{t('ราคาขาย', 'Sell Price')}</SortHead>
+                <SortHead k="qty" align="right">{t('คงเหลือ', 'In Stock')}</SortHead>
+                <th className="px-5 py-2.5 label-cap text-left">{t('สถานะ', 'Status')}</th>
                 <th className="px-5 py-2.5 label-cap text-right">Actions</th>
               </tr>
             </thead>
@@ -283,21 +285,21 @@ function ItemsPage({ store }) {
                   <td className="px-5 py-3 text-right kbd tabular-nums">{fmtTHB(it.buy)}</td>
                   <td className="px-5 py-3 text-right kbd tabular-nums">{fmtTHB(it.sell)}</td>
                   <td className="px-5 py-3 text-right kbd font-semibold tabular-nums">{fmtInt(it.qty)}</td>
-                  <td className="px-5 py-3"><StockStatus qty={it.qty}/></td>
+                  <td className="px-5 py-3"><StockStatus qty={it.qty} lang={lang}/></td>
                   <td className="px-5 py-3">
                     <div className="flex items-center justify-end gap-0.5">
-                      <IconButton title="ดู" icon={<Icon.Eye size={15}/>} onClick={() => setDetailItem(it)}/>
-                      <IconButton title="แก้ไข" icon={<Icon.Edit size={15}/>} tone="brand" onClick={() => setEditing(it)}/>
-                      <IconButton title="ลบ" icon={<Icon.Trash size={15}/>} tone="danger"
-                        onClick={() => { if (confirm(`ลบสินค้า ${it.code}?`)) { actions.delItem(it.code); Toast.push('ลบสินค้าแล้ว'); } }}/>
+                      <IconButton title={t('ดู', 'View')} icon={<Icon.Eye size={15}/>} onClick={() => setDetailItem(it)}/>
+                      <IconButton title={t('แก้ไข', 'Edit')} icon={<Icon.Edit size={15}/>} tone="brand" onClick={() => setEditing(it)}/>
+                      <IconButton title={t('ลบ', 'Delete')} icon={<Icon.Trash size={15}/>} tone="danger"
+                        onClick={() => { if (confirm(`${t('ลบสินค้า', 'Delete item')} ${it.code}?`)) { actions.delItem(it.code); Toast.push(t('ลบสินค้าแล้ว', 'Item deleted')); } }}/>
                     </div>
                   </td>
                 </tr>
               ))}
               {pageItems.length === 0 && (
                 <tr><td colSpan="8">
-                  <Empty title="ไม่พบสินค้า" hint="ลองเปลี่ยนคำค้นหาหรือเพิ่มสินค้าใหม่"
-                    action={<Button variant="primary" icon={<Icon.Plus size={15}/>} onClick={() => setEditing('new')}>เพิ่มสินค้าแรก</Button>}/>
+                  <Empty title={t('ไม่พบสินค้า', 'No items found')} hint={t('ลองเปลี่ยนคำค้นหาหรือเพิ่มสินค้าใหม่', 'Try a different search or add a new item')}
+                    action={<Button variant="primary" icon={<Icon.Plus size={15}/>} onClick={() => setEditing('new')}>{t('เพิ่มสินค้าแรก', 'Add First Item')}</Button>}/>
                 </td></tr>
               )}
             </tbody>
@@ -305,7 +307,7 @@ function ItemsPage({ store }) {
         </div>
 
         <div className="px-5 py-3 flex items-center justify-between border-t border-line text-[12.5px] text-ink-mute">
-          <span>หน้า {safePage} จาก {totalPages}</span>
+          <span>{t('หน้า', 'Page')} {safePage} {t('จาก', 'of')} {totalPages}</span>
           <div className="flex items-center gap-1">
             <IconButton
               icon={<Icon.ChevronLeft size={15}/>}
@@ -322,10 +324,11 @@ function ItemsPage({ store }) {
       {editing && (
         <ItemEditor
           item={editing === 'new' ? null : editing}
+          lang={lang}
           onClose={() => setEditing(null)}
           onSave={(it) => {
-            if (editing === 'new') { actions.addItem(it); Toast.push('เพิ่มสินค้าแล้ว'); }
-            else { actions.updItem(editing.code, it); Toast.push('บันทึกการแก้ไขแล้ว'); }
+            if (editing === 'new') { actions.addItem(it); Toast.push(t('เพิ่มสินค้าแล้ว', 'Item added')); }
+            else { actions.updItem(editing.code, it); Toast.push(t('บันทึกการแก้ไขแล้ว', 'Changes saved')); }
             setEditing(null);
           }}/>
       )}
@@ -337,58 +340,61 @@ function ItemsPage({ store }) {
           pos={state.pos || state.purchaseOrders || []}
           sos={state.sos || state.salesOrders || []}
           customers={state.customers || []}
+          lang={lang}
           onClose={() => setDetailItem(null)}/>
       )}
 
       {scanOpen && (
         <ScanModal
+          lang={lang}
           onClose={() => setScanOpen(false)}
-          onCapture={(code) => { setQ(code); setScanOpen(false); Toast.push(`สแกน: ${code}`); }}/>
+          onCapture={(code) => { setQ(code); setScanOpen(false); Toast.push(`${t('สแกน', 'Scanned')}: ${code}`); }}/>
       )}
     </div>
   );
 }
 
 // ─── ItemEditor (unchanged) ───────────────────────────────────────────────────
-function ItemEditor({ item, onClose, onSave }) {
+function ItemEditor({ item, onClose, onSave, lang }) {
+  const t = (th, en) => lang === 'en' ? en : th;
   const [form, setForm] = useState(item || { code: '', name: '', nameEn: '', unit: 'ชิ้น', buy: 0, sell: 0, img: '#94a3b8' });
   const set = (k, v) => setForm(s => ({ ...s, [k]: v }));
   const colors = ['#94a3b8', '#64748b', '#0ea5e9', '#f59e0b', '#22c55e', '#a855f7', '#ef4444', '#14b8a6'];
   return (
-    <Modal open onClose={onClose} title={item ? `แก้ไขสินค้า · ${item.code}` : 'เพิ่มสินค้าใหม่'} width="max-w-2xl"
+    <Modal open onClose={onClose} title={item ? `${t('แก้ไขสินค้า', 'Edit Item')} · ${item.code}` : t('เพิ่มสินค้าใหม่', 'Add New Item')} width="max-w-2xl"
       footer={
         <React.Fragment>
-          <Button variant="ghost" onClick={onClose}>ยกเลิก</Button>
-          <Button variant="primary" icon={<Icon.Save size={15}/>} onClick={() => onSave(form)}>บันทึก</Button>
+          <Button variant="ghost" onClick={onClose}>{t('ยกเลิก', 'Cancel')}</Button>
+          <Button variant="primary" icon={<Icon.Save size={15}/>} onClick={() => onSave(form)}>{t('บันทึก', 'Save')}</Button>
         </React.Fragment>
       }>
       <div className="grid grid-cols-2 gap-4">
-        <Field label="รหัสสินค้า" required className="col-span-1">
+        <Field label={t('รหัสสินค้า', 'Item Code')} required className="col-span-1">
           <Input value={form.code} onChange={e => set('code', e.target.value)} placeholder="ITM-XXXX" readOnly={!!item}/>
         </Field>
-        <Field label="หน่วยนับ" required>
-          <Input value={form.unit} onChange={e => set('unit', e.target.value)} placeholder="ชิ้น / กล่อง / ม้วน"/>
+        <Field label={t('หน่วยนับ', 'Unit')} required>
+          <Input value={form.unit} onChange={e => set('unit', e.target.value)} placeholder={t('ชิ้น / กล่อง / ม้วน', 'pcs / box / roll')}/>
         </Field>
-        <Field label="ชื่อสินค้า (ไทย)" required className="col-span-2">
+        <Field label={t('ชื่อสินค้า (ไทย)', 'Item Name (Thai)')} required className="col-span-2">
           <Input value={form.name} onChange={e => set('name', e.target.value)}/>
         </Field>
-        <Field label="ชื่อสินค้า (อังกฤษ)" className="col-span-2">
+        <Field label={t('ชื่อสินค้า (อังกฤษ)', 'Item Name (English)')} className="col-span-2">
           <Input value={form.nameEn} onChange={e => set('nameEn', e.target.value)}/>
         </Field>
-        <Field label="ราคาซื้อ (฿)" required>
+        <Field label={t('ราคาซื้อ (฿)', 'Buy Price (฿)')} required>
           <Input type="number" prefix="฿" value={form.buy} onChange={e => set('buy', +e.target.value)}/>
         </Field>
-        <Field label="ราคาขาย (฿)" required>
+        <Field label={t('ราคาขาย (฿)', 'Sell Price (฿)')} required>
           <Input type="number" prefix="฿" value={form.sell} onChange={e => set('sell', +e.target.value)}/>
         </Field>
-        <Field label="รูปภาพ / สีกำกับ" className="col-span-2">
+        <Field label={t('รูปภาพ / สีกำกับ', 'Image / Color Tag')} className="col-span-2">
           <div className="flex items-center gap-2">
             {colors.map(c => (
               <button key={c} onClick={() => set('img', c)}
                 className={`h-9 w-9 rounded-md border-2 ${form.img === c ? 'border-brand-500' : 'border-line'}`}
                 style={{ background: c }}/>
             ))}
-            <div className="ml-2 text-[12px] text-ink-mute">ตัวอย่างหรือสีบ่งบอกสำหรับการสแกนเร็ว</div>
+            <div className="ml-2 text-[12px] text-ink-mute">{t('ตัวอย่างหรือสีบ่งบอกสำหรับการสแกนเร็ว', 'Preview or color tag for quick scanning')}</div>
           </div>
         </Field>
       </div>
@@ -397,7 +403,8 @@ function ItemEditor({ item, onClose, onSave }) {
 }
 
 // ─── ScanModal (real camera + BarcodeDetector) ────────────────────────────────
-function ScanModal({ onClose, onCapture }) {
+function ScanModal({ onClose, onCapture, lang }) {
+  const t = (th, en) => lang === 'en' ? en : th;
   const [code, setCode] = useState('');
   const [cameraError, setCameraError] = useState(null);
   const [scanning, setScanning] = useState(false);
@@ -421,7 +428,7 @@ function ScanModal({ onClose, onCapture }) {
 
     async function startCamera() {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setCameraError('เบราว์เซอร์นี้ไม่รองรับการเข้าถึงกล้อง');
+        setCameraError(t('เบราว์เซอร์นี้ไม่รองรับการเข้าถึงกล้อง', 'This browser does not support camera access'));
         return;
       }
 
@@ -438,7 +445,10 @@ function ScanModal({ onClose, onCapture }) {
 
         // Check BarcodeDetector support
         if (!('BarcodeDetector' in window)) {
-          setCameraError('กรุณาป้อนรหัสด้วยตนเอง\n(เบราว์เซอร์นี้ไม่รองรับ BarcodeDetector — ใช้ Chrome/Edge)');
+          setCameraError(t(
+            'กรุณาป้อนรหัสด้วยตนเอง\n(เบราว์เซอร์นี้ไม่รองรับ BarcodeDetector — ใช้ Chrome/Edge)',
+            'Please enter the code manually\n(This browser does not support BarcodeDetector — use Chrome/Edge)'
+          ));
           setScanning(false);
           return;
         }
@@ -471,11 +481,11 @@ function ScanModal({ onClose, onCapture }) {
       } catch (err) {
         if (cancelled) return;
         if (err.name === 'NotAllowedError') {
-          setCameraError('ไม่ได้รับอนุญาตให้เข้าถึงกล้อง กรุณาอนุญาตในการตั้งค่าเบราว์เซอร์');
+          setCameraError(t('ไม่ได้รับอนุญาตให้เข้าถึงกล้อง กรุณาอนุญาตในการตั้งค่าเบราว์เซอร์', 'Camera access denied. Please allow camera in browser settings.'));
         } else if (err.name === 'NotFoundError') {
-          setCameraError('ไม่พบกล้องในอุปกรณ์นี้');
+          setCameraError(t('ไม่พบกล้องในอุปกรณ์นี้', 'No camera found on this device'));
         } else {
-          setCameraError(`ไม่สามารถเปิดกล้องได้: ${err.message}`);
+          setCameraError(`${t('ไม่สามารถเปิดกล้องได้', 'Unable to open camera')}: ${err.message}`);
         }
       }
     }
@@ -488,11 +498,11 @@ function ScanModal({ onClose, onCapture }) {
   }, []);
 
   return (
-    <Modal open onClose={() => { stopStream(); onClose(); }} title="สแกน QR / Barcode" width="max-w-md"
+    <Modal open onClose={() => { stopStream(); onClose(); }} title={t('สแกน QR / Barcode', 'Scan QR / Barcode')} width="max-w-md"
       footer={
         <React.Fragment>
-          <Button variant="ghost" onClick={() => { stopStream(); onClose(); }}>ยกเลิก</Button>
-          <Button variant="primary" icon={<Icon.Check size={15}/>} onClick={() => { if (code) { stopStream(); onCapture(code); } }}>ยืนยัน</Button>
+          <Button variant="ghost" onClick={() => { stopStream(); onClose(); }}>{t('ยกเลิก', 'Cancel')}</Button>
+          <Button variant="primary" icon={<Icon.Check size={15}/>} onClick={() => { if (code) { stopStream(); onCapture(code); } }}>{t('ยืนยัน', 'Confirm')}</Button>
         </React.Fragment>
       }>
       <div className="space-y-4">
@@ -516,7 +526,7 @@ function ScanModal({ onClose, onCapture }) {
                 <span className="absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-brand-300 rounded-bl"/>
                 <span className="absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-brand-300 rounded-br"/>
               </div>
-              <p className="mt-3 text-[12px] text-white/80">วางบาร์โค้ดให้อยู่กลางกรอบ</p>
+              <p className="mt-3 text-[12px] text-white/80">{t('วางบาร์โค้ดให้อยู่กลางกรอบ', 'Position the barcode within the frame')}</p>
             </div>
           )}
 
@@ -524,7 +534,7 @@ function ScanModal({ onClose, onCapture }) {
           {!scanning && !cameraError && !detected && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white/60">
               <Icon.Camera size={36} className="mb-2"/>
-              <p className="text-[12px]">กำลังเปิดกล้อง…</p>
+              <p className="text-[12px]">{t('กำลังเปิดกล้อง…', 'Starting camera…')}</p>
             </div>
           )}
 
@@ -542,14 +552,14 @@ function ScanModal({ onClose, onCapture }) {
           {detected && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-emerald-900/80 text-white">
               <Icon.Check size={36} className="mb-2"/>
-              <p className="text-[13px] font-semibold">พบบาร์โค้ด!</p>
+              <p className="text-[13px] font-semibold">{t('พบบาร์โค้ด!', 'Barcode detected!')}</p>
               <p className="mt-1 text-[12px] opacity-80 kbd">{detected}</p>
             </div>
           )}
         </div>
 
         {/* Manual entry */}
-        <Field label="หรือป้อนรหัสด้วยตนเอง">
+        <Field label={t('หรือป้อนรหัสด้วยตนเอง', 'Or enter code manually')}>
           <Input
             prefix={<Icon.QR size={14}/>}
             placeholder="ITM-1001"

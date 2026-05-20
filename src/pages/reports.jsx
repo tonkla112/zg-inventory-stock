@@ -1,5 +1,6 @@
 // Reports page
-function ReportsPage({ store }) {
+function ReportsPage({ store, lang }) {
+  const t = (th, en) => lang === 'en' ? en : th;
   const { state, stockMap } = store;
   const [tab, setTab] = useState('balance');
   const [dateFrom, setDateFrom] = useState('');
@@ -38,25 +39,25 @@ function ReportsPage({ store }) {
     <div className="space-y-5">
       <PageHeader
         title="Reports"
-        titleTh="รายงาน"
-        subtitle="ยอดคงเหลือและประวัติการเคลื่อนไหวสินค้า"
+        titleTh={t('รายงาน', 'Reports')}
+        subtitle={t('ยอดคงเหลือและประวัติการเคลื่อนไหวสินค้า', 'Stock balance and movement history')}
         actions={
           <React.Fragment>
             <Button variant="secondary" size="sm" icon={<Icon.CSV size={14}/>} onClick={() => {
               if (tab === 'balance') {
                 exportCSV(
-                  ['รหัสสินค้า','ชื่อสินค้า','หน่วย','รับเข้ารวม','เบิกออกรวม','คงเหลือ','มูลค่า (฿)'],
+                  [t('รหัสสินค้า','Item Code'), t('ชื่อสินค้า','Item Name'), t('หน่วย','Unit'), t('รับเข้ารวม','Total In'), t('เบิกออกรวม','Total Out'), t('คงเหลือ','Balance'), t('มูลค่า (฿)','Value (฿)')],
                   balanceRows.map(r => [r.code, r.name, r.unit, r.inQty, r.outQty, r.qty, r.value]),
                   `ZG-Stock-Balance-${todayISO()}.csv`
                 );
               } else {
                 exportCSV(
-                  ['วันที่','เลขที่เอกสาร','ประเภท','รหัสสินค้า','ชื่อสินค้า','คู่ค้า/แผนก','จำนวน','มูลค่า (฿)'],
-                  movement.map(m => [m.date, m.doc, m.kind==='in'?'รับเข้า':'เบิกออก', m.code, m.name, m.party, m.qty, m.amount]),
+                  [t('วันที่','Date'), t('เลขที่เอกสาร','Doc No.'), t('ประเภท','Type'), t('รหัสสินค้า','Item Code'), t('ชื่อสินค้า','Item Name'), t('คู่ค้า/แผนก','Party/Dept'), t('จำนวน','Qty'), t('มูลค่า (฿)','Value (฿)')],
+                  movement.map(m => [m.date, m.doc, m.kind==='in' ? t('รับเข้า','Stock In') : t('เบิกออก','Stock Out'), m.code, m.name, m.party, m.qty, m.amount]),
                   `ZG-Movement-${todayISO()}.csv`
                 );
               }
-              Toast.push('Export CSV เรียบร้อยแล้ว');
+              Toast.push(t('Export CSV เรียบร้อยแล้ว', 'CSV exported successfully'));
             }}>Export CSV</Button>
             <Button variant="primary" size="sm" icon={<Icon.PDF size={14}/>} onClick={() => {
               if (tab === 'balance') {
@@ -70,16 +71,16 @@ function ReportsPage({ store }) {
                   <td class="right mono">฿${Number(r.value).toLocaleString('th-TH',{minimumFractionDigits:2})}</td>
                 </tr>`).join('');
                 const total = balanceRows.reduce((s,r)=>s+r.value,0);
-                printWindow('รายงานยอดคงเหลือสินค้า', `
+                printWindow(t('รายงานยอดคงเหลือสินค้า', 'Stock Balance Report'), `
                   <table>
                     <thead><tr>
-                      <th>รหัสสินค้า</th><th>ชื่อสินค้า</th><th>หน่วย</th>
-                      <th class="right">รับเข้า</th><th class="right">เบิกออก</th>
-                      <th class="right">คงเหลือ</th><th class="right">มูลค่า (฿)</th>
+                      <th>${t('รหัสสินค้า','Item Code')}</th><th>${t('ชื่อสินค้า','Item Name')}</th><th>${t('หน่วย','Unit')}</th>
+                      <th class="right">${t('รับเข้า','Stock In')}</th><th class="right">${t('เบิกออก','Stock Out')}</th>
+                      <th class="right">${t('คงเหลือ','Balance')}</th><th class="right">${t('มูลค่า (฿)','Value (฿)')}</th>
                     </tr></thead>
                     <tbody>${tableRows}</tbody>
                     <tfoot><tr>
-                      <td colspan="6" class="right">รวมมูลค่าสต๊อกทั้งหมด</td>
+                      <td colspan="6" class="right">${t('รวมมูลค่าสต๊อกทั้งหมด','Total Stock Value')}</td>
                       <td class="right mono brand">฿${Number(total).toLocaleString('th-TH',{minimumFractionDigits:2})}</td>
                     </tr></tfoot>
                   </table>`);
@@ -87,18 +88,18 @@ function ReportsPage({ store }) {
                 const tableRows = movement.map(m => `<tr>
                   <td class="mono">${m.date}</td>
                   <td class="mono brand">${m.doc}</td>
-                  <td><span class="badge ${m.kind==='in'?'badge-in':'badge-out'}">${m.kind==='in'?'รับเข้า':'เบิกออก'}</span></td>
+                  <td><span class="badge ${m.kind==='in'?'badge-in':'badge-out'}">${m.kind==='in' ? t('รับเข้า','Stock In') : t('เบิกออก','Stock Out')}</span></td>
                   <td class="mono">${m.code}</td>
                   <td>${m.name}</td>
                   <td>${m.party}</td>
                   <td class="right mono ${m.kind==='in'?'good':'danger'}">${m.kind==='in'?'+':'−'}${m.qty}</td>
                   <td class="right mono">฿${Number(m.amount).toLocaleString('th-TH',{minimumFractionDigits:2})}</td>
                 </tr>`).join('');
-                printWindow('รายงานประวัติเคลื่อนไหวสินค้า', `
+                printWindow(t('รายงานประวัติเคลื่อนไหวสินค้า', 'Stock Movement History Report'), `
                   <table>
                     <thead><tr>
-                      <th>วันที่</th><th>เอกสาร</th><th>ประเภท</th><th>รหัสสินค้า</th>
-                      <th>ชื่อสินค้า</th><th>คู่ค้า/แผนก</th><th class="right">จำนวน</th><th class="right">มูลค่า (฿)</th>
+                      <th>${t('วันที่','Date')}</th><th>${t('เอกสาร','Doc')}</th><th>${t('ประเภท','Type')}</th><th>${t('รหัสสินค้า','Item Code')}</th>
+                      <th>${t('ชื่อสินค้า','Item Name')}</th><th>${t('คู่ค้า/แผนก','Party/Dept')}</th><th class="right">${t('จำนวน','Qty')}</th><th class="right">${t('มูลค่า (฿)','Value (฿)')}</th>
                     </tr></thead>
                     <tbody>${tableRows}</tbody>
                   </table>`);
@@ -111,23 +112,23 @@ function ReportsPage({ store }) {
       {/* Summary tiles */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white border border-line rounded-card p-4">
-          <p className="label-cap">มูลค่าสต๊อกรวม</p>
-          <p className="text-[12px] text-ink-faint">Total stock value</p>
+          <p className="label-cap">{t('มูลค่าสต๊อกรวม', 'Total Stock Value')}</p>
+          <p className="text-[12px] text-ink-faint">{t('มูลค่าสต๊อกรวม', 'Total stock value')}</p>
           <p className="kbd text-[22px] font-semibold mt-2">{fmtTHB(totalStockValue)}</p>
         </div>
         <div className="bg-white border border-line rounded-card p-4">
-          <p className="label-cap">รับเข้ารวม</p>
-          <p className="text-[12px] text-ink-faint">Total stock in</p>
+          <p className="label-cap">{t('รับเข้ารวม', 'Total Stock In')}</p>
+          <p className="text-[12px] text-ink-faint">{t('รับเข้ารวม', 'Total stock in')}</p>
           <p className="kbd text-[22px] font-semibold mt-2 text-good-fg">+{fmtInt(balanceRows.reduce((s,r) => s + r.inQty, 0))}</p>
         </div>
         <div className="bg-white border border-line rounded-card p-4">
-          <p className="label-cap">เบิกออกรวม</p>
-          <p className="text-[12px] text-ink-faint">Total stock out</p>
+          <p className="label-cap">{t('เบิกออกรวม', 'Total Stock Out')}</p>
+          <p className="text-[12px] text-ink-faint">{t('เบิกออกรวม', 'Total stock out')}</p>
           <p className="kbd text-[22px] font-semibold mt-2 text-danger-fg">−{fmtInt(balanceRows.reduce((s,r) => s + r.outQty, 0))}</p>
         </div>
         <div className="bg-white border border-line rounded-card p-4">
-          <p className="label-cap">เอกสาร PO / SO</p>
-          <p className="text-[12px] text-ink-faint">Total documents</p>
+          <p className="label-cap">{t('เอกสาร PO / SO', 'PO / SO Documents')}</p>
+          <p className="text-[12px] text-ink-faint">{t('เอกสารทั้งหมด', 'Total documents')}</p>
           <p className="kbd text-[22px] font-semibold mt-2">{state.pos.length} / {state.sos.length}</p>
         </div>
       </div>
@@ -137,24 +138,24 @@ function ReportsPage({ store }) {
           <Tabs
             value={tab} onChange={setTab}
             items={[
-              { value:'balance', label:'ยอดคงเหลือ / Stock Balance', count: balanceRows.length },
-              { value:'movement', label:'ประวัติเคลื่อนไหว / Movement', count: movement.length },
+              { value:'balance', label: t('ยอดคงเหลือ / Stock Balance', 'Stock Balance'), count: balanceRows.length },
+              { value:'movement', label: t('ประวัติเคลื่อนไหว / Movement', 'Movement History'), count: movement.length },
             ]}
           />
         </div>
 
         {tab === 'movement' && (
           <div className="p-4 flex flex-wrap items-center gap-2 border-b border-line bg-page/60">
-            <Field label="จากวันที่"><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} prefix={<Icon.Calendar size={13}/>}/></Field>
-            <Field label="ถึงวันที่"><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} prefix={<Icon.Calendar size={13}/>}/></Field>
-            <Field label="สินค้า">
+            <Field label={t('จากวันที่', 'From Date')}><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} prefix={<Icon.Calendar size={13}/>}/></Field>
+            <Field label={t('ถึงวันที่', 'To Date')}><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} prefix={<Icon.Calendar size={13}/>}/></Field>
+            <Field label={t('สินค้า', 'Item')}>
               <Select value={filterItem} onChange={e => setFilterItem(e.target.value)} className="w-[240px]">
-                <option value="">ทุกสินค้า</option>
+                <option value="">{t('ทุกสินค้า', 'All Items')}</option>
                 {state.items.map(i => <option key={i.code} value={i.code}>{i.code} — {i.name}</option>)}
               </Select>
             </Field>
             <div className="flex-1"/>
-            <Button variant="ghost" size="sm" icon={<Icon.X size={13}/>} onClick={() => { setDateFrom(''); setDateTo(''); setFilterItem(''); }}>ล้างตัวกรอง</Button>
+            <Button variant="ghost" size="sm" icon={<Icon.X size={13}/>} onClick={() => { setDateFrom(''); setDateTo(''); setFilterItem(''); }}>{t('ล้างตัวกรอง', 'Clear Filters')}</Button>
           </div>
         )}
 
@@ -163,14 +164,14 @@ function ReportsPage({ store }) {
             <table className="w-full text-[13.5px]">
               <thead className="bg-page border-b border-line text-ink-mute">
                 <tr>
-                  <th className="text-left font-medium px-5 py-2.5 label-cap">รหัสสินค้า</th>
-                  <th className="text-left font-medium px-5 py-2.5 label-cap">ชื่อสินค้า</th>
-                  <th className="text-left font-medium px-5 py-2.5 label-cap">หน่วย</th>
-                  <th className="text-right font-medium px-5 py-2.5 label-cap">รับเข้า</th>
-                  <th className="text-right font-medium px-5 py-2.5 label-cap">เบิกออก</th>
-                  <th className="text-right font-medium px-5 py-2.5 label-cap">คงเหลือ</th>
-                  <th className="text-right font-medium px-5 py-2.5 label-cap">มูลค่า (ราคาทุน)</th>
-                  <th className="text-left font-medium px-5 py-2.5 label-cap">สถานะ</th>
+                  <th className="text-left font-medium px-5 py-2.5 label-cap">{t('รหัสสินค้า', 'Item Code')}</th>
+                  <th className="text-left font-medium px-5 py-2.5 label-cap">{t('ชื่อสินค้า', 'Item Name')}</th>
+                  <th className="text-left font-medium px-5 py-2.5 label-cap">{t('หน่วย', 'Unit')}</th>
+                  <th className="text-right font-medium px-5 py-2.5 label-cap">{t('รับเข้า', 'Stock In')}</th>
+                  <th className="text-right font-medium px-5 py-2.5 label-cap">{t('เบิกออก', 'Stock Out')}</th>
+                  <th className="text-right font-medium px-5 py-2.5 label-cap">{t('คงเหลือ', 'Balance')}</th>
+                  <th className="text-right font-medium px-5 py-2.5 label-cap">{t('มูลค่า (ราคาทุน)', 'Value (Cost)')}</th>
+                  <th className="text-left font-medium px-5 py-2.5 label-cap">{t('สถานะ', 'Status')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -189,7 +190,7 @@ function ReportsPage({ store }) {
               </tbody>
               <tfoot>
                 <tr className="bg-page border-t border-line">
-                  <td colSpan="6" className="px-5 py-3 text-right text-ink-mute label-cap">รวมมูลค่าสต๊อก</td>
+                  <td colSpan="6" className="px-5 py-3 text-right text-ink-mute label-cap">{t('รวมมูลค่าสต๊อก', 'Total Stock Value')}</td>
                   <td className="px-5 py-3 text-right kbd text-[15px] font-bold text-brand-700">{fmtTHB(totalStockValue)}</td>
                   <td></td>
                 </tr>
@@ -201,14 +202,14 @@ function ReportsPage({ store }) {
             <table className="w-full text-[13.5px]">
               <thead className="bg-page border-b border-line text-ink-mute">
                 <tr>
-                  <th className="text-left font-medium px-5 py-2.5 label-cap">วันที่</th>
-                  <th className="text-left font-medium px-5 py-2.5 label-cap">เอกสาร</th>
-                  <th className="text-left font-medium px-5 py-2.5 label-cap">ประเภท</th>
-                  <th className="text-left font-medium px-5 py-2.5 label-cap">รหัสสินค้า</th>
-                  <th className="text-left font-medium px-5 py-2.5 label-cap">ชื่อสินค้า</th>
-                  <th className="text-left font-medium px-5 py-2.5 label-cap">คู่ค้า / แผนก</th>
-                  <th className="text-right font-medium px-5 py-2.5 label-cap">จำนวน</th>
-                  <th className="text-right font-medium px-5 py-2.5 label-cap">มูลค่า</th>
+                  <th className="text-left font-medium px-5 py-2.5 label-cap">{t('วันที่', 'Date')}</th>
+                  <th className="text-left font-medium px-5 py-2.5 label-cap">{t('เอกสาร', 'Document')}</th>
+                  <th className="text-left font-medium px-5 py-2.5 label-cap">{t('ประเภท', 'Type')}</th>
+                  <th className="text-left font-medium px-5 py-2.5 label-cap">{t('รหัสสินค้า', 'Item Code')}</th>
+                  <th className="text-left font-medium px-5 py-2.5 label-cap">{t('ชื่อสินค้า', 'Item Name')}</th>
+                  <th className="text-left font-medium px-5 py-2.5 label-cap">{t('คู่ค้า / แผนก', 'Party / Dept')}</th>
+                  <th className="text-right font-medium px-5 py-2.5 label-cap">{t('จำนวน', 'Qty')}</th>
+                  <th className="text-right font-medium px-5 py-2.5 label-cap">{t('มูลค่า', 'Value')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -218,8 +219,8 @@ function ReportsPage({ store }) {
                     <td className="px-5 py-3"><span className="kbd text-[12.5px] font-semibold text-brand-700">{m.doc}</span></td>
                     <td className="px-5 py-3">
                       {m.kind === 'in'
-                        ? <Badge tone="good" icon={<Icon.ArrowDown size={11}/>}>รับเข้า</Badge>
-                        : <Badge tone="danger" icon={<Icon.ArrowUp size={11}/>}>เบิกออก</Badge>}
+                        ? <Badge tone="good" icon={<Icon.ArrowDown size={11}/>}>{t('รับเข้า', 'Stock In')}</Badge>
+                        : <Badge tone="danger" icon={<Icon.ArrowUp size={11}/>}>{t('เบิกออก', 'Stock Out')}</Badge>}
                     </td>
                     <td className="px-5 py-3"><span className="kbd text-[12.5px] text-ink-soft">{m.code}</span></td>
                     <td className="px-5 py-3">{m.name}</td>
@@ -230,7 +231,7 @@ function ReportsPage({ store }) {
                     <td className="px-5 py-3 text-right kbd tabular-nums">{fmtTHB(m.amount)}</td>
                   </tr>
                 ))}
-                {movement.length === 0 && <tr><td colSpan="8"><Empty title="ไม่พบรายการเคลื่อนไหว" hint="ลองปรับตัวกรองวันที่หรือสินค้า"/></td></tr>}
+                {movement.length === 0 && <tr><td colSpan="8"><Empty title={t('ไม่พบรายการเคลื่อนไหว', 'No movement records found')} hint={t('ลองปรับตัวกรองวันที่หรือสินค้า', 'Try adjusting the date or item filters')}/></td></tr>}
               </tbody>
             </table>
           </div>
