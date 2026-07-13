@@ -38,7 +38,7 @@ const mapSO = (r, lines) => ({
   shipping: +r.shipping, discount: +r.discount, sig: r.has_sig,
   lines: lines
     .filter(l => l.so_id === r.id)
-    .map(l => ({ code: l.item_code, qty: l.qty, price: +l.price })),
+    .map(l => ({ id: l.id, code: l.item_code, qty: l.qty, price: +l.price })),
 });
 
 // ---- Main store hook ----
@@ -93,6 +93,18 @@ function useStore() {
       return true;
     },
 
+    async delPO(id) {
+      const prevPOs = stateRef.current.pos;
+      setState(s => ({ ...s, pos: s.pos.filter(p => p.id !== id) }));
+      const { error } = await _db().from('purchase_orders').delete().eq('id', id);
+      if (error) {
+        setState(s => ({ ...s, pos: prevPOs }));
+        Toast.push('ลบรายการรับเข้าไม่สำเร็จ: ' + error.message, 'danger');
+        return false;
+      }
+      return true;
+    },
+
     // ---- Sale Orders ----
     async addSO(so) {
       const id = nextId('SO', stateRef.current.sos);
@@ -110,6 +122,35 @@ function useStore() {
         const rows = so.lines.map(l => ({ so_id: id, item_code: l.code, qty: l.qty, price: l.price || 0 }));
         const { error: e2 } = await _db().from('sale_order_lines').insert(rows);
         if (e2) Toast.push('บันทึก line items บางส่วนไม่สำเร็จ', 'danger');
+      }
+      return true;
+    },
+
+    // Delete a single line from a Sale Order (one movement-history record).
+    // If it was the last line, the whole SO header is removed too so no empty SO remains.
+    async delSOLine(soId, lineId) {
+      const prevSos = stateRef.current.sos;
+      const so = prevSos.find(s => s.id === soId);
+      if (!so) return false;
+      const remaining = so.lines.filter(l => l.id !== lineId);
+
+      if (remaining.length === 0) {
+        setState(s => ({ ...s, sos: s.sos.filter(x => x.id !== soId) }));
+        const { error } = await _db().from('sale_orders').delete().eq('id', soId);
+        if (error) {
+          setState(s => ({ ...s, sos: prevSos }));
+          Toast.push('ลบรายการเบิกออกไม่สำเร็จ: ' + error.message, 'danger');
+          return false;
+        }
+        return true;
+      }
+
+      setState(s => ({ ...s, sos: s.sos.map(x => x.id === soId ? { ...x, lines: remaining } : x) }));
+      const { error } = await _db().from('sale_order_lines').delete().eq('id', lineId);
+      if (error) {
+        setState(s => ({ ...s, sos: prevSos }));
+        Toast.push('ลบรายการเบิกออกไม่สำเร็จ: ' + error.message, 'danger');
+        return false;
       }
       return true;
     },
