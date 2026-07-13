@@ -1,0 +1,8 @@
+{
+  "name": "zg-inventory-stock",
+  "private": true,
+  "description": "Static browser app (no build step). This package.json only wires up the Node-based test suite.",
+  "scripts": {
+    "test": "node tests/data.actions.test.js"
+  }
+}
