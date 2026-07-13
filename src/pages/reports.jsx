@@ -20,12 +20,12 @@ function ReportsPage({ store, lang }) {
 
   // Movement rows
   let movement = [
-    ...state.pos.map(p => ({ kind:'in', date:p.date, doc:p.id, code:p.code, name:p.name, qty:p.qty, party:'รับเข้าคลัง', amount: p.price*p.qty })),
+    ...state.pos.map(p => ({ kind:'in', date:p.date, doc:p.id, code:p.code, name:p.name, qty:p.qty, party:'รับเข้าคลัง', amount: p.price*p.qty, poId:p.id })),
     ...state.sos.flatMap(s => s.lines.map(l => {
       const it = itemMap.get(l.code) || {};
       const c = custMap.get(s.custCode) || {};
       return { kind:'out', date:s.date, doc:s.id, code:l.code, name:it.name || l.code, qty:l.qty,
-        party: c.name || '—', amount: (it.sell || 0) * l.qty };
+        party: c.name || '—', amount: (it.sell || 0) * l.qty, soId:s.id, lineId:l.id };
     }))
   ];
   if (dateFrom) movement = movement.filter(m => m.date >= dateFrom);
@@ -34,6 +34,24 @@ function ReportsPage({ store, lang }) {
   movement.sort((a,b) => b.date.localeCompare(a.date) || b.doc.localeCompare(a.doc));
 
   const totalStockValue = balanceRows.reduce((s, r) => s + r.value, 0);
+
+  async function deleteMovement(m) {
+    const label = m.kind === 'in' ? t('รับเข้า', 'stock-in') : t('เบิกออก', 'stock-out');
+    const msg = t(
+      `ลบรายการ${label} ${m.doc} (${m.code}) นี้ใช่หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้`,
+      `Delete this ${label} record ${m.doc} (${m.code})? This cannot be undone.`
+    );
+    if (!confirm(msg)) return;
+
+    const ok = m.kind === 'in'
+      ? await store.actions.delPO(m.poId)
+      : await store.actions.delSOLine(m.soId, m.lineId);
+
+    if (ok) {
+      Toast.push(t('ลบรายการเคลื่อนไหวแล้ว', 'Movement record deleted'));
+    }
+    // On failure, store.actions already pushes a danger Toast with the error detail.
+  }
 
   return (
     <div className="space-y-5">
@@ -210,6 +228,7 @@ function ReportsPage({ store, lang }) {
                   <th className="text-left font-medium px-5 py-2.5 label-cap">{t('คู่ค้า / แผนก', 'Party / Dept')}</th>
                   <th className="text-right font-medium px-5 py-2.5 label-cap">{t('จำนวน', 'Qty')}</th>
                   <th className="text-right font-medium px-5 py-2.5 label-cap">{t('มูลค่า', 'Value')}</th>
+                  <th className="text-right font-medium px-5 py-2.5 label-cap">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -229,9 +248,13 @@ function ReportsPage({ store, lang }) {
                       {m.kind==='in'?'+':'−'}{fmtInt(m.qty)}
                     </td>
                     <td className="px-5 py-3 text-right kbd tabular-nums">{fmtTHB(m.amount)}</td>
+                    <td className="px-5 py-3 text-right">
+                      <IconButton title={t('ลบ', 'Delete')} icon={<Icon.Trash size={15}/>} tone="danger"
+                        onClick={() => deleteMovement(m)}/>
+                    </td>
                   </tr>
                 ))}
-                {movement.length === 0 && <tr><td colSpan="8"><Empty title={t('ไม่พบรายการเคลื่อนไหว', 'No movement records found')} hint={t('ลองปรับตัวกรองวันที่หรือสินค้า', 'Try adjusting the date or item filters')}/></td></tr>}
+                {movement.length === 0 && <tr><td colSpan="9"><Empty title={t('ไม่พบรายการเคลื่อนไหว', 'No movement records found')} hint={t('ลองปรับตัวกรองวันที่หรือสินค้า', 'Try adjusting the date or item filters')}/></td></tr>}
               </tbody>
             </table>
           </div>
