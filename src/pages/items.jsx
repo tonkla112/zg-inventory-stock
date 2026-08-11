@@ -177,32 +177,38 @@ function ItemsPage({ store, lang }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [detailItem, setDetailItem] = useState(null); // item being viewed in detail modal
 
-  const augmented = state.items.map(i => ({ ...i, qty: stockMap.get(i.code) || 0 }));
+  const augmented = useMemo(() => state.items.map(i => ({ ...i, qty: stockMap.get(i.code) || 0 })), [state.items, stockMap]);
 
-  let filtered = augmented.filter(i => {
+  const filtered = useMemo(() => {
     const m = q.toLowerCase();
-    return !q || i.code.toLowerCase().includes(m) || i.name.toLowerCase().includes(m) || (i.nameEn || '').toLowerCase().includes(m);
-  });
-  if (filter === 'ok')   filtered = filtered.filter(i => i.qty >= 10);
-  if (filter === 'low')  filtered = filtered.filter(i => i.qty > 0 && i.qty < 10);
-  if (filter === 'zero') filtered = filtered.filter(i => i.qty === 0);
-  filtered.sort((a, b) => {
-    const va = a[sortBy.key], vb = b[sortBy.key];
-    const cmp = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'th');
-    return sortBy.dir === 'asc' ? cmp : -cmp;
-  });
+    const matchesSearch = i => !q || i.code.toLowerCase().includes(m) || i.name.toLowerCase().includes(m) || (i.nameEn || '').toLowerCase().includes(m);
+    const matchesStatus = i =>
+      filter === 'all' ||
+      (filter === 'ok' && i.qty >= 10) ||
+      (filter === 'low' && i.qty > 0 && i.qty < 10) ||
+      (filter === 'zero' && i.qty === 0);
 
-  const counts = {
-    all:  augmented.length,
-    ok:   augmented.filter(i => i.qty >= 10).length,
-    low:  augmented.filter(i => i.qty > 0 && i.qty < 10).length,
-    zero: augmented.filter(i => i.qty === 0).length,
-  };
+    return augmented
+      .filter(i => matchesSearch(i) && matchesStatus(i))
+      .sort((a, b) => {
+        const va = a[sortBy.key], vb = b[sortBy.key];
+        const cmp = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'th');
+        return sortBy.dir === 'asc' ? cmp : -cmp;
+      });
+  }, [augmented, q, filter, sortBy]);
+
+  const counts = useMemo(() => augmented.reduce((acc, i) => {
+    acc.all += 1;
+    if (i.qty >= 10) acc.ok += 1;
+    else if (i.qty > 0) acc.low += 1;
+    else acc.zero += 1;
+    return acc;
+  }, { all: 0, ok: 0, low: 0, zero: 0 }), [augmented]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage   = Math.min(currentPage, totalPages);
-  const pageItems  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const pageItems  = useMemo(() => filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE), [filtered, safePage]);
 
   // Reset to page 1 when search/filter changes
   useEffect(() => { setCurrentPage(1); }, [q, filter]);

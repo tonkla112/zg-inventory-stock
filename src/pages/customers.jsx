@@ -1,4 +1,12 @@
 // Customers page
+const CUSTOMER_DEPT_COLORS = {
+  'ฝ่ายผลิต':'#1D9E75',
+  'ฝ่ายซ่อมบำรุง':'#2563eb',
+  'ฝ่ายคลังสินค้า':'#d97706',
+  'ฝ่าย QC':'#7c3aed',
+  'ฝ่ายบริหาร':'#0891b2',
+};
+
 function CustomersPage({ store, lang }) {
   const t = (th, en) => lang === 'en' ? en : th;
   const { state, actions } = store;
@@ -6,26 +14,32 @@ function CustomersPage({ store, lang }) {
   const [editing, setEditing] = useState(null);
   const [viewCust, setViewCust] = useState(null);
 
-  // order counts
-  const counts = state.customers.map(c => {
-    const orders = state.sos.filter(s => s.custCode === c.code);
-    const total = orders.reduce((s, o) => s + soTotals(o, state.items).net, 0);
-    return { ...c, ordersCount: orders.length, total };
-  });
-  const filtered = counts.filter(c => {
+  const itemMap = useMemo(() => new Map(state.items.map(i => [i.code, i])), [state.items]);
+  const orderStatsByCust = useMemo(() => {
+    const stats = new Map();
+    state.sos.forEach(o => {
+      const current = stats.get(o.custCode) || { ordersCount: 0, total: 0 };
+      stats.set(o.custCode, {
+        ordersCount: current.ordersCount + 1,
+        total: current.total + soTotalsFromMap(o, itemMap).net,
+      });
+    });
+    return stats;
+  }, [state.sos, itemMap]);
+
+  const counts = useMemo(() => state.customers.map(c => {
+    const stats = orderStatsByCust.get(c.code) || { ordersCount: 0, total: 0 };
+    return { ...c, ...stats };
+  }), [state.customers, orderStatsByCust]);
+
+  const filtered = useMemo(() => counts.filter(c => {
     const m = q.toLowerCase();
     return !q || c.code.toLowerCase().includes(m) || c.name.toLowerCase().includes(m) ||
            c.dept.toLowerCase().includes(m) || c.pos.toLowerCase().includes(m);
-  });
+  }), [counts, q]);
 
   // department palette for avatars
-  const deptColor = (d) => {
-    const map = {
-      'ฝ่ายผลิต':'#1D9E75', 'ฝ่ายซ่อมบำรุง':'#2563eb', 'ฝ่ายคลังสินค้า':'#d97706',
-      'ฝ่าย QC':'#7c3aed', 'ฝ่ายบริหาร':'#0891b2',
-    };
-    return map[d] || '#64748b';
-  };
+  const deptColor = (d) => CUSTOMER_DEPT_COLORS[d] || '#64748b';
 
   return (
     <div className="space-y-5">
@@ -151,12 +165,10 @@ function CustomerEditor({ cust, nextCode, onClose, onSave, lang }) {
 
 function CustomerHistoryModal({ cust, sos, items, onClose, lang }) {
   const t = (th, en) => lang === 'en' ? en : th;
-  const itemMap = new Map(items.map(i => [i.code, i]));
-  const custSOs = sos.filter(s => s.custCode === cust.code).sort((a,b) => b.id.localeCompare(a.id));
-  const totalSpend = custSOs.reduce((sum, s) => {
-    const sub = s.lines.reduce((ls, l) => ls + (itemMap.get(l.code)?.sell || 0) * l.qty, 0);
-    return sum + sub + (s.shipping||0) - (s.discount||0);
-  }, 0);
+  const itemMap = useMemo(() => new Map(items.map(i => [i.code, i])), [items]);
+  const custSOs = useMemo(() => sos.filter(s => s.custCode === cust.code).sort((a,b) => b.id.localeCompare(a.id)), [sos, cust.code]);
+  const custSORows = useMemo(() => custSOs.map(s => ({ ...s, net: soTotalsFromMap(s, itemMap).net })), [custSOs, itemMap]);
+  const totalSpend = useMemo(() => custSORows.reduce((sum, s) => sum + s.net, 0), [custSORows]);
 
   return (
     <Modal open onClose={onClose} title={`${t('ประวัติการเบิก', 'Withdrawal History')} · ${cust.name}`} width="max-w-3xl">
@@ -193,28 +205,24 @@ function CustomerHistoryModal({ cust, sos, items, onClose, lang }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {custSOs.map(s => {
-                  const sub = s.lines.reduce((ls, l) => ls + (itemMap.get(l.code)?.sell || 0) * l.qty, 0);
-                  const net = sub + (s.shipping||0) - (s.discount||0);
-                  return (
-                    <tr key={s.id} className="row-hover">
-                      <td className="px-4 py-2.5"><span className="kbd text-[12px] font-semibold text-brand-700">{s.id}</span></td>
-                      <td className="px-4 py-2.5 text-ink-mute">{fmtDate(s.date)}</td>
-                      <td className="px-4 py-2.5">
-                        {s.lines.slice(0,2).map((l,i) => (
-                          <span key={i} className="mr-2 text-ink-soft">{itemMap.get(l.code)?.name || l.code} ×{l.qty}</span>
-                        ))}
-                        {s.lines.length > 2 && <span className="text-ink-faint">+{s.lines.length-2} {t('รายการ', 'items')}</span>}
-                      </td>
-                      <td className="px-4 py-2.5 text-right kbd tabular-nums font-semibold">{fmtTHB(net)}</td>
-                      <td className="px-4 py-2.5 text-center">
-                        {s.sig
-                          ? <Badge tone="good" size="xs" icon={<Icon.Check size={10}/>}>{t('เซ็นแล้ว', 'Signed')}</Badge>
-                          : <Badge tone="warn" size="xs">{t('ยังไม่เซ็น', 'Unsigned')}</Badge>}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {custSORows.map(s => (
+                  <tr key={s.id} className="row-hover">
+                    <td className="px-4 py-2.5"><span className="kbd text-[12px] font-semibold text-brand-700">{s.id}</span></td>
+                    <td className="px-4 py-2.5 text-ink-mute">{fmtDate(s.date)}</td>
+                    <td className="px-4 py-2.5">
+                      {s.lines.slice(0,2).map((l,i) => (
+                        <span key={i} className="mr-2 text-ink-soft">{itemMap.get(l.code)?.name || l.code} ×{l.qty}</span>
+                      ))}
+                      {s.lines.length > 2 && <span className="text-ink-faint">+{s.lines.length-2} {t('รายการ', 'items')}</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-right kbd tabular-nums font-semibold">{fmtTHB(s.net)}</td>
+                    <td className="px-4 py-2.5 text-center">
+                      {s.sig
+                        ? <Badge tone="good" size="xs" icon={<Icon.Check size={10}/>}>{t('เซ็นแล้ว', 'Signed')}</Badge>
+                        : <Badge tone="warn" size="xs">{t('ยังไม่เซ็น', 'Unsigned')}</Badge>}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

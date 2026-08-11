@@ -57,14 +57,14 @@ function MainApp({ auth, onLogout, dark, setDark, lang, setLang }) {
 
   // Compute role + nav before any hooks that depend on them
   const role = auth.role;
-  const nav = [
+  const nav = useMemo(() => [
     { key:'dashboard', th:'ภาพรวม',     en:'Dashboard',  icon:<Icon.Dashboard size={17}/> },
     { key:'items',     th:'สินค้า',      en:'Items',      icon:<Icon.Box size={17}/>,    badge: store.state.items.length },
     { key:'stockin',   th:'รับเข้า',     en:'Stock In',   icon:<Icon.Inbox size={17}/>,  roles:['admin','staff'] },
     { key:'stockout',  th:'เบิกออก',     en:'Stock Out',  icon:<Icon.Outbox size={17}/>, roles:['admin','staff'] },
     { key:'customers', th:'ผู้รับสินค้า', en:'Customers',  icon:<Icon.Users size={17}/>,  badge: store.state.customers.length, roles:['admin','staff'] },
     { key:'reports',   th:'รายงาน',      en:'Reports',    icon:<Icon.Chart size={17}/> },
-  ].filter(n => !n.roles || n.roles.includes(role));
+  ].filter(n => !n.roles || n.roles.includes(role)), [role, store.state.items.length, store.state.customers.length]);
 
   // ALL hooks must be called in the same order every render — before any early returns
   useEffect(() => {
@@ -79,6 +79,9 @@ function MainApp({ auth, onLogout, dark, setDark, lang, setLang }) {
   useEffect(() => {
     if (!nav.find(n => n.key === page)) setPage('dashboard');
   }, [role]);
+
+  const currentNav = useMemo(() => nav.find(n => n.key === page), [nav, page]);
+  const outOfStockCount = useMemo(() => store.state.items.filter(i => (store.stockMap.get(i.code) || 0) === 0).length, [store.state.items, store.stockMap]);
 
   // Early return is safe now — all hooks have already been called above
   if (!store.ready) return <Loader text="กำลังโหลดข้อมูลจาก Database..."/>;
@@ -97,8 +100,6 @@ function MainApp({ auth, onLogout, dark, setDark, lang, setLang }) {
     }
   })();
 
-  const currentNav = nav.find(n => n.key === page);
-  const outOfStockCount = store.state.items.filter(i => (store.stockMap.get(i.code) || 0) === 0).length;
   const displayName = (auth.name || auth.email || 'User').replace('คุณ','').trim() || 'U';
 
   return (

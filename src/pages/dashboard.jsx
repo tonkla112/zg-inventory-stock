@@ -3,34 +3,47 @@ function DashboardPage({ store, nav, lang }) {
   const t = (th, en) => lang === 'en' ? en : th;
   const { state, stockMap, actions } = store;
   const today = todayISO();
-  const todayPOs = state.pos.filter(p => p.date === today);
-  const todaySOs = state.sos.filter(s => s.date === today);
-  const todayPOAmount = todayPOs.reduce((sum, p) => sum + p.price * p.qty, 0);
-  const todaySOAmount = todaySOs.reduce((sum, s) => sum + soTotals(s, state.items).net, 0);
-  const outOfStock = state.items.filter(i => (stockMap.get(i.code) || 0) === 0);
+  const stockInLabel = t('รับเข้าคลัง', 'Stock In');
+  const itemMap = useMemo(() => new Map(state.items.map(i => [i.code, i])), [state.items]);
+  const custMap = useMemo(() => new Map(state.customers.map(c => [c.code, c])), [state.customers]);
+
+  const todayStats = useMemo(() => state.pos.reduce((stats, p) => {
+    if (p.date !== today) return stats;
+    stats.pos.push(p);
+    stats.poAmount += p.price * p.qty;
+    return stats;
+  }, { pos: [], poAmount: 0 }), [state.pos, today]);
+
+  const todaySOStats = useMemo(() => state.sos.reduce((stats, s) => {
+    if (s.date !== today) return stats;
+    stats.sos.push(s);
+    stats.soAmount += soTotalsFromMap(s, itemMap).net;
+    return stats;
+  }, { sos: [], soAmount: 0 }), [state.sos, itemMap, today]);
+
+  const stockRows = useMemo(() => state.items.map(i => ({ ...i, qty: stockMap.get(i.code) || 0 })), [state.items, stockMap]);
+  const outOfStock = useMemo(() => stockRows.filter(i => i.qty === 0), [stockRows]);
 
   // top 5 by stock
-  const top5 = [...state.items]
-    .map(i => ({ ...i, qty: stockMap.get(i.code) || 0 }))
-    .sort((a,b) => b.qty - a.qty)
-    .slice(0, 5);
-  const maxStock = Math.max(...top5.map(t => t.qty), 1);
+  const top5 = useMemo(() => [...stockRows].sort((a,b) => b.qty - a.qty).slice(0, 5), [stockRows]);
+  const maxStock = useMemo(() => Math.max(...top5.map(t => t.qty), 1), [top5]);
 
   // recent transactions feed (mix of POs and SOs)
-  const itemMap = new Map(state.items.map(i => [i.code, i]));
-  const custMap = new Map(state.customers.map(c => [c.code, c]));
-  const feed = [
+  const feed = useMemo(() => [
     ...state.pos.map(p => ({
       kind:'in', id:p.id, date:p.date, code:p.code,
-      name:p.name, qty:p.qty, party: t('รับเข้าคลัง', 'Stock In'), amount:p.price*p.qty,
+      name:p.name, qty:p.qty, party: stockInLabel, amount:p.price*p.qty,
     })),
-    ...state.sos.flatMap(s => s.lines.map(l => ({
-      kind:'out', id:s.id, date:s.date, code:l.code,
-      name:itemMap.get(l.code)?.name || l.code, qty:l.qty,
-      party: custMap.get(s.custCode)?.dept || '—',
-      amount:(itemMap.get(l.code)?.sell||0)*l.qty,
-    })))
-  ].sort((a,b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)).slice(0, 9);
+    ...state.sos.flatMap(s => s.lines.map(l => {
+      const it = itemMap.get(l.code);
+      return {
+        kind:'out', id:s.id, date:s.date, code:l.code,
+        name:it?.name || l.code, qty:l.qty,
+        party: custMap.get(s.custCode)?.dept || '—',
+        amount:(it?.sell||0)*l.qty,
+      };
+    }))
+  ].sort((a,b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)).slice(0, 9), [state.pos, state.sos, itemMap, custMap, stockInLabel]);
 
   return (
     <div className="space-y-5">
@@ -74,13 +87,13 @@ function DashboardPage({ store, nav, lang }) {
         />
         <KPI labelTh={t('รับเข้าวันนี้', "Today's PO")} label={t('รับเข้าวันนี้', "Today's PO")} tone="info"
           icon={<Icon.Inbox size={18}/>}
-          value={fmtInt(todayPOs.length)}
-          hint={t(`มูลค่ารวม ${fmtTHB(todayPOAmount)}`, `Total value ${fmtTHB(todayPOAmount)}`)}
+          value={fmtInt(todayStats.pos.length)}
+          hint={t(`มูลค่ารวม ${fmtTHB(todayStats.poAmount)}`, `Total value ${fmtTHB(todayStats.poAmount)}`)}
         />
         <KPI labelTh={t('เบิกออกวันนี้', "Today's SO")} label={t('เบิกออกวันนี้', "Today's SO")} tone="warn"
           icon={<Icon.Outbox size={18}/>}
-          value={fmtInt(todaySOs.length)}
-          hint={t(`มูลค่ารวม ${fmtTHB(todaySOAmount)}`, `Total value ${fmtTHB(todaySOAmount)}`)}
+          value={fmtInt(todaySOStats.sos.length)}
+          hint={t(`มูลค่ารวม ${fmtTHB(todaySOStats.soAmount)}`, `Total value ${fmtTHB(todaySOStats.soAmount)}`)}
         />
       </div>
 

@@ -253,8 +253,6 @@ function SODetailModal({ so, items, customers, onClose, lang }) {
 function StockOutPage({ store, lang }) {
   const t = (th, en) => lang === 'en' ? en : th;
   const { state, actions } = store;
-  const itemMap = new Map(state.items.map(i => [i.code, i]));
-  const custMap = new Map(state.customers.map(c => [c.code, c]));
 
   const [date, setDate] = useState(todayISO());
   const [custCode, setCustCode] = useState('');
@@ -264,13 +262,15 @@ function StockOutPage({ store, lang }) {
   const [sigData, setSigData] = useState(null);
   const [viewSO, setViewSO] = useState(null);
 
-  const nextSO = nextId('SO', state.sos);
+  const itemMap = useMemo(() => new Map(state.items.map(i => [i.code, i])), [state.items]);
+  const custMap = useMemo(() => new Map(state.customers.map(c => [c.code, c])), [state.customers]);
+  const nextSO = useMemo(() => nextId('SO', state.sos), [state.sos]);
   const cust = custMap.get(custCode);
 
-  const subtotal = lines.reduce((s, l) => {
+  const subtotal = useMemo(() => lines.reduce((s, l) => {
     const it = itemMap.get(l.code);
     return s + (it ? it.sell * (l.qty || 0) : 0);
-  }, 0);
+  }, 0), [lines, itemMap]);
   const net = subtotal + (+shipping || 0) - (+discount || 0);
 
   function setLine(uid, patch) {
@@ -305,14 +305,14 @@ function StockOutPage({ store, lang }) {
   }
 
   // SO history: most recent first, limit 20
-  const recentSOs = [...(state.sos || [])].reverse().slice(0, 20);
+  const recentSOs = useMemo(() => [...(state.sos || [])].reverse().slice(0, 20), [state.sos]);
 
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Stock Out (Sale Order)"
-        titleTh={t('เบิกออก / ใบขาย', 'Stock Out / Sale Order')}
-        subtitle={t('สร้างใบเบิกสินค้าและออกเอกสาร SO พร้อมลายเซ็น', 'Create a sale order document with recipient signature')}
+        title="Stock Out (Withdrawal)"
+        titleTh={t('เบิกออก / ใบเบิกสินค้า', 'Stock Out / Withdrawal')}
+        subtitle={t('สร้างใบเบิกสินค้าและออกเอกสาร SO พร้อมลายเซ็น', 'Create a withdrawal document with recipient signature')}
       />
 
       {/* Header info */}
@@ -443,13 +443,13 @@ function StockOutPage({ store, lang }) {
         </div>
       </Card>
 
-      {/* SO History */}
-      <Card padded={false} title={t('ประวัติใบเบิกสินค้า', 'Sale Order History')} subtitle="Recent sale orders">
+      {/* Withdrawal history */}
+      <Card padded={false} title={t('ประวัติการเบิกสินค้า', 'Withdrawal History')} subtitle="Recent withdrawals">
         {recentSOs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-14 text-ink-faint gap-2">
             <Icon.PDF size={32}/>
-            <p className="text-[13px]">{t('ยังไม่มีใบเบิกสินค้า', 'No sale orders yet')}</p>
-            <p className="text-[12px] text-ink-faint/60">{t('สร้าง SO แรกด้านบน', 'Create your first SO above')}</p>
+            <p className="text-[13px]">{t('ยังไม่มีประวัติการเบิกสินค้า', 'No withdrawals yet')}</p>
+            <p className="text-[12px] text-ink-faint/60">{t('สร้างใบเบิกแรกด้านบน', 'Create your first withdrawal above')}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">

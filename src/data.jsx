@@ -3,13 +3,17 @@ const _db = () => window.ZG_SUPABASE;
 
 // ---- Compute helpers (unchanged from original) ----
 function computeStock(items, pos, sos) {
-  const map = new Map(items.map(i => [i.code, 0]));
+  const map = new Map();
+  items.forEach(i => map.set(i.code, 0));
   pos.forEach(p => map.set(p.code, (map.get(p.code) || 0) + p.qty));
   sos.forEach(s => s.lines.forEach(l => map.set(l.code, (map.get(l.code) || 0) - l.qty)));
   return map;
 }
 function soTotals(so, items) {
   const itemMap = new Map(items.map(i => [i.code, i]));
+  return soTotalsFromMap(so, itemMap);
+}
+function soTotalsFromMap(so, itemMap) {
   const subtotal = so.lines.reduce((sum, l) => sum + (itemMap.get(l.code)?.sell || 0) * l.qty, 0);
   const net = subtotal + (so.shipping || 0) - (so.discount || 0);
   return { subtotal, net };
@@ -33,12 +37,10 @@ const mapCust = r => ({
 const mapPO = r => ({
   id: r.id, date: r.date, code: r.item_code, name: r.item_name, unit: r.unit, price: +r.price, qty: r.qty,
 });
-const mapSO = (r, lines) => ({
+const mapSO = (r, lines = []) => ({
   id: r.id, date: r.date, custCode: r.cust_code,
   shipping: +r.shipping, discount: +r.discount, sig: r.has_sig,
-  lines: lines
-    .filter(l => l.so_id === r.id)
-    .map(l => ({ id: l.id, code: l.item_code, qty: l.qty, price: +l.price })),
+  lines: lines.map(l => ({ id: l.id, code: l.item_code, qty: l.qty, price: +l.price })),
 });
 
 // ---- Main store hook ----
@@ -58,11 +60,17 @@ function useStore() {
         _db().from('sale_order_lines').select('*'),
       ]);
       const lines = r5.data || [];
+      const linesBySO = new Map();
+      lines.forEach(l => {
+        const group = linesBySO.get(l.so_id) || [];
+        group.push(l);
+        linesBySO.set(l.so_id, group);
+      });
       setState({
         items:     (r1.data || []).map(mapItem),
         customers: (r2.data || []).map(mapCust),
         pos:       (r3.data || []).map(mapPO),
-        sos:       (r4.data || []).map(r => mapSO(r, lines)),
+        sos:       (r4.data || []).map(r => mapSO(r, linesBySO.get(r.id))),
       });
     } catch (e) {
       console.error('ZG Store load error:', e);
@@ -74,7 +82,7 @@ function useStore() {
 
   useEffect(() => { loadAll(); }, []);
 
-  const stockMap = useMemo(() => computeStock(state.items, state.pos, state.sos), [state]);
+  const stockMap = useMemo(() => computeStock(state.items, state.pos, state.sos), [state.items, state.pos, state.sos]);
 
   const actions = {
     // ---- Purchase Orders ----
@@ -214,4 +222,4 @@ function useStore() {
   return { state, stockMap, ready, actions };
 }
 
-Object.assign(window, { useStore, soTotals, computeStock, nextId });
+Object.assign(window, { useStore, soTotals, soTotalsFromMap, computeStock, nextId });

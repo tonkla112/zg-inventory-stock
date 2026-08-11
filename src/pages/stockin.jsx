@@ -9,8 +9,8 @@ function StockInPage({ store, lang }) {
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState('');
 
-  const nextPO = nextId('PO', state.pos);
-  const itemMap = new Map(state.items.map(i => [i.code, i]));
+  const nextPO = useMemo(() => nextId('PO', state.pos), [state.pos]);
+  const itemMap = useMemo(() => new Map(state.items.map(i => [i.code, i])), [state.items]);
   const amount = (form.price || 0) * (form.qty || 0);
 
   function setCode(code) {
@@ -30,13 +30,14 @@ function StockInPage({ store, lang }) {
     setForm({ date: todayISO(), code:'', name:'', unit:'', price:0, qty:1 });
   }
 
-  let recentPOs = [...state.pos];
-  if (search) {
+  const recentPOs = useMemo(() => {
     const m = search.toLowerCase();
-    recentPOs = recentPOs.filter(p => p.id.toLowerCase().includes(m) || p.code.toLowerCase().includes(m) || p.name.toLowerCase().includes(m));
-  }
-  if (dateFilter) recentPOs = recentPOs.filter(p => p.date === dateFilter);
-  recentPOs = recentPOs.sort((a,b) => b.id.localeCompare(a.id)).slice(0, 15);
+    return state.pos
+      .filter(p => !search || p.id.toLowerCase().includes(m) || p.code.toLowerCase().includes(m) || p.name.toLowerCase().includes(m))
+      .filter(p => !dateFilter || p.date === dateFilter)
+      .sort((a,b) => b.id.localeCompare(a.id))
+      .slice(0, 15);
+  }, [state.pos, search, dateFilter]);
 
   return (
     <div className="space-y-5">

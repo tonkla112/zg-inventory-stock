@@ -7,33 +7,54 @@ function ReportsPage({ store, lang }) {
   const [dateTo, setDateTo] = useState('');
   const [filterItem, setFilterItem] = useState('');
 
-  const itemMap = new Map(state.items.map(i => [i.code, i]));
-  const custMap = new Map(state.customers.map(c => [c.code, c]));
+  const itemMap = useMemo(() => new Map(state.items.map(i => [i.code, i])), [state.items]);
+  const custMap = useMemo(() => new Map(state.customers.map(c => [c.code, c])), [state.customers]);
 
-  // Stock balance rows
-  const balanceRows = state.items.map(i => {
+  const stockTotals = useMemo(() => {
+    const inByCode = new Map();
+    const outByCode = new Map();
+
+    state.pos.forEach(p => {
+      inByCode.set(p.code, (inByCode.get(p.code) || 0) + p.qty);
+    });
+    state.sos.forEach(s => {
+      s.lines.forEach(l => {
+        outByCode.set(l.code, (outByCode.get(l.code) || 0) + l.qty);
+      });
+    });
+
+    return { inByCode, outByCode };
+  }, [state.pos, state.sos]);
+
+  const balanceRows = useMemo(() => state.items.map(i => {
     const qty = stockMap.get(i.code) || 0;
-    const inQty = state.pos.filter(p => p.code === i.code).reduce((s, p) => s + p.qty, 0);
-    const outQty = state.sos.flatMap(s => s.lines).filter(l => l.code === i.code).reduce((s, l) => s + l.qty, 0);
+    const inQty = stockTotals.inByCode.get(i.code) || 0;
+    const outQty = stockTotals.outByCode.get(i.code) || 0;
     return { ...i, qty, inQty, outQty, value: qty * i.buy };
-  });
+  }), [state.items, stockMap, stockTotals]);
 
-  // Movement rows
-  let movement = [
-    ...state.pos.map(p => ({ kind:'in', date:p.date, doc:p.id, code:p.code, name:p.name, qty:p.qty, party:'รับเข้าคลัง', amount: p.price*p.qty, poId:p.id })),
-    ...state.sos.flatMap(s => s.lines.map(l => {
-      const it = itemMap.get(l.code) || {};
-      const c = custMap.get(s.custCode) || {};
-      return { kind:'out', date:s.date, doc:s.id, code:l.code, name:it.name || l.code, qty:l.qty,
-        party: c.name || '—', amount: (it.sell || 0) * l.qty, soId:s.id, lineId:l.id };
-    }))
-  ];
-  if (dateFrom) movement = movement.filter(m => m.date >= dateFrom);
-  if (dateTo) movement = movement.filter(m => m.date <= dateTo);
-  if (filterItem) movement = movement.filter(m => m.code === filterItem);
-  movement.sort((a,b) => b.date.localeCompare(a.date) || b.doc.localeCompare(a.doc));
+  const movement = useMemo(() => {
+    const rows = [
+      ...state.pos.map(p => ({ kind:'in', date:p.date, doc:p.id, code:p.code, name:p.name, qty:p.qty, party:'รับเข้าคลัง', amount: p.price*p.qty, poId:p.id })),
+      ...state.sos.flatMap(s => s.lines.map(l => {
+        const it = itemMap.get(l.code) || {};
+        const c = custMap.get(s.custCode) || {};
+        return { kind:'out', date:s.date, doc:s.id, code:l.code, name:it.name || l.code, qty:l.qty,
+          party: c.name || '—', amount: (it.sell || 0) * l.qty, soId:s.id, lineId:l.id };
+      }))
+    ];
 
-  const totalStockValue = balanceRows.reduce((s, r) => s + r.value, 0);
+    return rows
+      .filter(m => (!dateFrom || m.date >= dateFrom) && (!dateTo || m.date <= dateTo) && (!filterItem || m.code === filterItem))
+      .sort((a,b) => b.date.localeCompare(a.date) || b.doc.localeCompare(a.doc));
+  }, [state.pos, state.sos, itemMap, custMap, dateFrom, dateTo, filterItem]);
+
+  const reportTotals = useMemo(() => balanceRows.reduce((totals, r) => ({
+    stockValue: totals.stockValue + r.value,
+    inQty: totals.inQty + r.inQty,
+    outQty: totals.outQty + r.outQty,
+  }), { stockValue: 0, inQty: 0, outQty: 0 }), [balanceRows]);
+  const totalStockValue = reportTotals.stockValue;
 
   async function deleteMovement(m) {
     const label = m.kind === 'in' ? t('รับเข้า', 'stock-in') : t('เบิกออก', 'stock-out');
@@ -137,12 +158,12 @@ function ReportsPage({ store, lang }) {
         <div className="bg-white border border-line rounded-card p-4">
           <p className="label-cap">{t('รับเข้ารวม', 'Total Stock In')}</p>
           <p className="text-[12px] text-ink-faint">{t('รับเข้ารวม', 'Total stock in')}</p>
-          <p className="kbd text-[22px] font-semibold mt-2 text-good-fg">+{fmtInt(balanceRows.reduce((s,r) => s + r.inQty, 0))}</p>
+          <p className="kbd text-[22px] font-semibold mt-2 text-good-fg">+{fmtInt(reportTotals.inQty)}</p>
         </div>
         <div className="bg-white border border-line rounded-card p-4">
           <p className="label-cap">{t('เบิกออกรวม', 'Total Stock Out')}</p>
           <p className="text-[12px] text-ink-faint">{t('เบิกออกรวม', 'Total stock out')}</p>
-          <p className="kbd text-[22px] font-semibold mt-2 text-danger-fg">−{fmtInt(balanceRows.reduce((s,r) => s + r.outQty, 0))}</p>
+          <p className="kbd text-[22px] font-semibold mt-2 text-danger-fg">−{fmtInt(reportTotals.outQty)}</p>
         </div>
         <div className="bg-white border border-line rounded-card p-4">
           <p className="label-cap">{t('เอกสาร PO / SO', 'PO / SO Documents')}</p>
