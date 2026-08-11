@@ -10,6 +10,12 @@ function buildSOPrintHTML(so, items, customers, lang) {
     return s + (it ? it.sell * l.qty : 0);
   }, 0);
   const net = subtotal + (so.shipping || 0) - (so.discount || 0);
+  const signatureData = typeof so.signatureData === 'string' && so.signatureData.startsWith('data:image/')
+    ? so.signatureData
+    : '';
+  const signatureContent = signatureData
+    ? `<img src="${signatureData}" alt="Recipient signature" style="max-width:100%;max-height:46px;object-fit:contain;display:block;" />`
+    : (so.sig ? t('มีลายเซ็น', 'Signed') : t('ยังไม่ได้เซ็น', 'Not signed'));
 
   const lineRows = so.lines.map((l, idx) => {
     const it = itemMap.get(l.code) || {};
@@ -109,7 +115,7 @@ function buildSOPrintHTML(so, items, customers, lang) {
         <div style="flex:1;text-align:center;">
           <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">${t('ลายเซ็นผู้รับสินค้า / Recipient signature', 'Recipient signature / ลายเซ็นผู้รับสินค้า')}</div>
           <div style="border:1px dashed #9ca3af;height:52px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;color:${so.sig ? '#16a34a' : '#ef4444'};">
-            ${so.sig ? t('มีลายเซ็น', 'Signed') : t('ยังไม่ได้เซ็น', 'Not signed')}
+            ${signatureContent}
           </div>
           <div style="border-top:1px solid #9ca3af;margin-top:8px;padding-top:6px;font-size:12px;color:#6b7280;">${t('ผู้รับสินค้า / Recipient', 'Recipient / ผู้รับสินค้า')}</div>
         </div>
@@ -288,7 +294,7 @@ function StockOutPage({ store, lang }) {
     const valid = lines.filter(l => l.code && itemMap.has(l.code) && l.qty > 0);
     if (valid.length === 0) { Toast.push(t('กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ', 'Please add at least 1 item'), 'danger'); return; }
     const soData = {
-      date, custCode, shipping: +shipping || 0, discount: +discount || 0, sig: !!sigData,
+      date, custCode, shipping: +shipping || 0, discount: +discount || 0, sig: !!sigData, signatureData: sigData,
       lines: valid.map(l => ({ code: l.code, qty: +l.qty })),
     };
     actions.addSO(soData);
