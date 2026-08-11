@@ -10,9 +10,10 @@ function buildSOPrintHTML(so, items, customers, lang) {
     return s + (it ? it.sell * l.qty : 0);
   }, 0);
   const net = subtotal + (so.shipping || 0) - (so.discount || 0);
+  const savedSignature = typeof getStoredSignature === 'function' ? getStoredSignature(so.id) : '';
   const signatureData = typeof so.signatureData === 'string' && so.signatureData.startsWith('data:image/')
     ? so.signatureData
-    : '';
+    : savedSignature;
   const signatureContent = signatureData
     ? `<img src="${signatureData}" alt="Recipient signature" style="max-width:100%;max-height:46px;object-fit:contain;display:block;" />`
     : (so.sig ? t('มีลายเซ็น', 'Signed') : t('ยังไม่ได้เซ็น', 'Not signed'));

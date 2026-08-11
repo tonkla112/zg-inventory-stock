@@ -1,5 +1,33 @@
 // Supabase-backed store — replaces localStorage version
 const _db = () => window.ZG_SUPABASE;
+const SIGNATURE_STORE_KEY = 'zg-signatures-v1';
+
+function readSignatureStore() {
+  try {
+    return JSON.parse(window.localStorage?.getItem(SIGNATURE_STORE_KEY) || '{}') || {};
+  } catch (e) {
+    return {};
+  }
+}
+function getStoredSignature(id) {
+  const data = readSignatureStore()[id];
+  return typeof data === 'string' && data.startsWith('data:image/') ? data : '';
+}
+function saveStoredSignature(id, signatureData) {
+  if (typeof signatureData !== 'string' || !signatureData.startsWith('data:image/')) return;
+  try {
+    const store = readSignatureStore();
+    store[id] = signatureData;
+    window.localStorage?.setItem(SIGNATURE_STORE_KEY, JSON.stringify(store));
+  } catch (e) {}
+}
+function removeStoredSignature(id) {
+  try {
+    const store = readSignatureStore();
+    delete store[id];
+    window.localStorage?.setItem(SIGNATURE_STORE_KEY, JSON.stringify(store));
+  } catch (e) {}
+}
 
 // ---- Compute helpers (unchanged from original) ----
 function computeStock(items, pos, sos) {
@@ -40,6 +68,7 @@ const mapPO = r => ({
 const mapSO = (r, lines = []) => ({
   id: r.id, date: r.date, custCode: r.cust_code,
   shipping: +r.shipping, discount: +r.discount, sig: r.has_sig,
+  signatureData: getStoredSignature(r.id),
   lines: lines.map(l => ({ id: l.id, code: l.item_code, qty: l.qty, price: +l.price })),
 });
 
@@ -116,7 +145,8 @@ function useStore() {
     // ---- Sale Orders ----
     async addSO(so) {
       const id = nextId('SO', stateRef.current.sos);
-      setState(s => ({ ...s, sos: [{ ...so, id }, ...s.sos] }));
+      const nextSO = { ...so, id };
+      setState(s => ({ ...s, sos: [nextSO, ...s.sos] }));
       const { error: e1 } = await _db().from('sale_orders').insert({
         id, date: so.date, cust_code: so.custCode,
         shipping: so.shipping || 0, discount: so.discount || 0, has_sig: so.sig || false,
@@ -126,6 +156,7 @@ function useStore() {
         Toast.push('บันทึก SO ไม่สำเร็จ: ' + e1.message, 'danger');
         return false;
       }
+      saveStoredSignature(id, so.signatureData);
       if (so.lines && so.lines.length > 0) {
         const rows = so.lines.map(l => ({ so_id: id, item_code: l.code, qty: l.qty, price: l.price || 0 }));
         const { error: e2 } = await _db().from('sale_order_lines').insert(rows);
@@ -150,6 +181,7 @@ function useStore() {
           Toast.push('ลบรายการเบิกออกไม่สำเร็จ: ' + error.message, 'danger');
           return false;
         }
+        removeStoredSignature(soId);
         return true;
       }
 
@@ -222,4 +254,4 @@ function useStore() {
   return { state, stockMap, ready, actions };
 }
 
-Object.assign(window, { useStore, soTotals, soTotalsFromMap, computeStock, nextId });
+Object.assign(window, { useStore, soTotals, soTotalsFromMap, computeStock, nextId, getStoredSignature });
