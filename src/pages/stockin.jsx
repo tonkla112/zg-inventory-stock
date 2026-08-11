@@ -35,7 +35,7 @@ function StockInPage({ store, lang }) {
     return state.pos
       .filter(p => !search || p.id.toLowerCase().includes(m) || p.code.toLowerCase().includes(m) || p.name.toLowerCase().includes(m))
       .filter(p => !dateFilter || p.date === dateFilter)
-      .sort((a,b) => b.id.localeCompare(a.id))
+      .sort((a,b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
       .slice(0, 15);
   }, [state.pos, search, dateFilter]);
 

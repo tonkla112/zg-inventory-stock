@@ -305,7 +305,9 @@ function StockOutPage({ store, lang }) {
   }
 
   // SO history: most recent first, limit 20
-  const recentSOs = useMemo(() => [...(state.sos || [])].reverse().slice(0, 20), [state.sos]);
+  const recentSOs = useMemo(() => [...(state.sos || [])]
+    .sort((a,b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
+    .slice(0, 20), [state.sos]);
 
   return (
     <div className="space-y-5">

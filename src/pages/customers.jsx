@@ -166,7 +166,9 @@ function CustomerEditor({ cust, nextCode, onClose, onSave, lang }) {
 function CustomerHistoryModal({ cust, sos, items, onClose, lang }) {
   const t = (th, en) => lang === 'en' ? en : th;
   const itemMap = useMemo(() => new Map(items.map(i => [i.code, i])), [items]);
-  const custSOs = useMemo(() => sos.filter(s => s.custCode === cust.code).sort((a,b) => b.id.localeCompare(a.id)), [sos, cust.code]);
+  const custSOs = useMemo(() => sos
+    .filter(s => s.custCode === cust.code)
+    .sort((a,b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)), [sos, cust.code]);
   const custSORows = useMemo(() => custSOs.map(s => ({ ...s, net: soTotalsFromMap(s, itemMap).net })), [custSOs, itemMap]);
   const totalSpend = useMemo(() => custSORows.reduce((sum, s) => sum + s.net, 0), [custSORows]);
 
