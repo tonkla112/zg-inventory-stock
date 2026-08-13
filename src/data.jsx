@@ -164,7 +164,10 @@ function useStore() {
       };
       let { error: e1 } = await _db().from('sale_orders').insert(headerRow);
       if (isMissingSignatureColumn(e1)) {
-        const { signature_data, ...fallbackRow } = headerRow;
+        const fallbackRow = {
+          id: headerRow.id, date: headerRow.date, cust_code: headerRow.cust_code,
+          shipping: headerRow.shipping, discount: headerRow.discount, has_sig: headerRow.has_sig,
+        };
         ({ error: e1 } = await _db().from('sale_orders').insert(fallbackRow));
       }
       if (e1) {
