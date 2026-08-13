@@ -258,13 +258,19 @@ function printWindow(title, bodyHtml) {
     else existingPreview.remove();
   }
 
-  const safeTitle = String(title ?? '').replace(/[&<>"']/g, c => ({
+  const rawTitle = String(title ?? '');
+  const safeTitle = rawTitle.replace(/[&<>"']/g, c => ({
     '&': '&amp;',
     '<': '&lt;',
     '>': '&gt;',
     '"': '&quot;',
     "'": '&#39;'
   }[c]));
+  const filename = `${rawTitle || 'ZG Inventory document'}`
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80) || 'ZG Inventory document';
 
   const printHtml = `<!doctype html><html lang="th"><head><meta charset="utf-8">
     <title>${safeTitle}</title>
@@ -312,20 +318,47 @@ function printWindow(title, bodyHtml) {
   preview.id = 'zg-print-preview';
   preview.setAttribute('role', 'dialog');
   preview.setAttribute('aria-modal', 'true');
-  preview.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;background:#070C0F;color:#E5E7EB;';
+  preview.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;background:#070C0F;color:#E5E7EB;font-family:"IBM Plex Sans","IBM Plex Sans Thai",system-ui,sans-serif;';
   preview.innerHTML = `
-    <div style="min-height:64px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 18px;background:#11181C;border-bottom:1px solid #243038;">
-      <div style="min-width:0;">
+    <style>
+      #zg-print-preview button { -webkit-tap-highlight-color: transparent; }
+      #zg-print-preview [data-print-toolbar] { min-height:72px;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 18px;background:#11181C;border-bottom:1px solid #243038; }
+      #zg-print-preview [data-print-title] { min-width:0; }
+      #zg-print-preview [data-print-actions] { display:flex;align-items:center;gap:10px;flex-shrink:0; }
+      #zg-print-preview [data-print-group] { display:flex;align-items:center;gap:6px;padding:3px;border:1px solid #2A3740;border-radius:10px;background:#0B1114; }
+      #zg-print-preview [data-print-button] { min-height:42px;padding:9px 14px;border:1px solid #35444D;border-radius:8px;background:#162025;color:#E5E7EB;font:600 14px "IBM Plex Sans","IBM Plex Sans Thai",system-ui,sans-serif;cursor:pointer;white-space:nowrap; }
+      #zg-print-preview [data-print-button]:hover { background:#1C2A30; }
+      #zg-print-preview [data-print-button].primary { border-color:#1D9E75;background:#1D9E75;color:white;font-weight:700; }
+      #zg-print-preview [data-print-button].active { border-color:#54D7AE;background:#12372E;color:#8EF0CF; }
+      #zg-print-preview [data-print-scroll] { flex:1;min-height:0;padding:18px;background:#0B1114;overflow:auto; }
+      #zg-print-preview iframe { display:block;width:min(100%,980px);height:100%;min-height:720px;margin:0 auto;border:0;border-radius:8px;background:white;box-shadow:0 24px 80px rgba(0,0,0,.38);transition:width .18s ease; }
+      @media (max-width: 860px) {
+        #zg-print-preview [data-print-toolbar] { align-items:flex-start;flex-direction:column;padding:12px; }
+        #zg-print-preview [data-print-actions] { width:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px; }
+        #zg-print-preview [data-print-group] { grid-column:1 / -1;display:grid;grid-template-columns:repeat(3,1fr);gap:6px; }
+        #zg-print-preview [data-print-button] { width:100%;min-height:46px;padding:10px 12px; }
+        #zg-print-preview [data-print-scroll] { padding:10px; }
+        #zg-print-preview iframe { min-height:calc(100vh - 180px);border-radius:6px; }
+      }
+    </style>
+    <div data-print-toolbar>
+      <div data-print-title>
         <div style="font-size:11px;line-height:1.2;text-transform:uppercase;letter-spacing:.12em;color:#9CA3AF;">Print Preview</div>
         <div style="margin-top:3px;font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${safeTitle}</div>
       </div>
-      <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
-        <button type="button" data-print-close style="min-height:42px;padding:9px 15px;border:1px solid #35444D;border-radius:8px;background:#162025;color:#E5E7EB;font:600 14px 'IBM Plex Sans','IBM Plex Sans Thai',system-ui,sans-serif;cursor:pointer;">← กลับ / Back</button>
-        <button type="button" data-print-action style="min-height:42px;padding:9px 18px;border:1px solid #1D9E75;border-radius:8px;background:#1D9E75;color:white;font:700 14px 'IBM Plex Sans','IBM Plex Sans Thai',system-ui,sans-serif;cursor:pointer;">พิมพ์ / Print</button>
+      <div data-print-actions>
+        <div data-print-group aria-label="Preview size">
+          <button type="button" data-print-button data-print-zoom="fit" class="active">Fit</button>
+          <button type="button" data-print-button data-print-zoom="100">100%</button>
+          <button type="button" data-print-button data-print-zoom="125">125%</button>
+        </div>
+        <button type="button" data-print-button data-print-download>ดาวน์โหลด / Download</button>
+        <button type="button" data-print-button data-print-close>← กลับ / Back</button>
+        <button type="button" data-print-button data-print-action class="primary">Save PDF / Print</button>
       </div>
     </div>
-    <div style="flex:1;min-height:0;padding:16px;background:#0B1114;overflow:auto;">
-      <iframe title="${safeTitle}" style="display:block;width:min(100%,980px);height:100%;min-height:720px;margin:0 auto;border:0;border-radius:8px;background:white;box-shadow:0 24px 80px rgba(0,0,0,.38);"></iframe>
+    <div data-print-scroll>
+      <iframe title="${safeTitle}"></iframe>
     </div>`;
 
   const closePreview = () => {
@@ -343,7 +376,28 @@ function printWindow(title, bodyHtml) {
 
   const frame = preview.querySelector('iframe');
   frame.srcdoc = printHtml;
+
+  const applyZoom = value => {
+    preview.querySelectorAll('[data-print-zoom]').forEach(button => {
+      button.classList.toggle('active', button.dataset.printZoom === value);
+    });
+    if (value === 'fit') frame.style.width = 'min(100%,980px)';
+    if (value === '100') frame.style.width = '980px';
+    if (value === '125') frame.style.width = '1225px';
+  };
+  preview.querySelectorAll('[data-print-zoom]').forEach(button => {
+    button.addEventListener('click', () => applyZoom(button.dataset.printZoom));
+  });
   preview.querySelector('[data-print-close]').addEventListener('click', closePreview);
+  preview.querySelector('[data-print-download]').addEventListener('click', () => {
+    const blob = new Blob([printHtml], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = Object.assign(document.createElement('a'), { href: url, download: `${filename}.html` });
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
   preview.querySelector('[data-print-action]').addEventListener('click', () => {
     const printTarget = frame.contentWindow;
     if (!printTarget) { Toast.push('ไม่สามารถพิมพ์เอกสารได้', 'danger'); return; }
