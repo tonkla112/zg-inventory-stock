@@ -252,10 +252,22 @@ function exportCSV(filename, headers, rows) {
 
 // ---- Print / PDF window utility
 function printWindow(title, bodyHtml) {
-  const w = window.open('', '_blank', 'width=940,height=720,scrollbars=yes');
-  if (!w) { Toast.push('เปิดหน้าพิมพ์ไม่ได้ — กรุณาอนุญาต popup ก่อน', 'danger'); return; }
-  w.document.write(`<!doctype html><html lang="th"><head><meta charset="utf-8">
-    <title>${title}</title>
+  const existingPreview = document.getElementById('zg-print-preview');
+  if (existingPreview) {
+    if (typeof existingPreview.__zgClosePreview === 'function') existingPreview.__zgClosePreview();
+    else existingPreview.remove();
+  }
+
+  const safeTitle = String(title ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[c]));
+
+  const printHtml = `<!doctype html><html lang="th"><head><meta charset="utf-8">
+    <title>${safeTitle}</title>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body { font-family: "IBM Plex Sans", "IBM Plex Sans Thai", system-ui, sans-serif; font-size: 13px; color: #111; padding: 32px; }
@@ -278,41 +290,67 @@ function printWindow(title, bodyHtml) {
       .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; font-size:12.5px; }
       .info-item label { color:#6B7280; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; display:block; margin-bottom:2px; }
       .zg-footer { margin-top:22px; text-align:right; font-size:11px; color:#9CA3AF; border-top:1px solid #E5E7EB; padding-top:8px; }
-      .print-toolbar { position:sticky; top:0; z-index:5; display:flex; justify-content:flex-end; gap:8px; margin:-16px -16px 18px; padding:10px 16px; background:rgba(248,250,251,.96); border-bottom:1px solid #E5E7EB; backdrop-filter:blur(10px); }
-      .print-action { min-height:38px; padding:9px 16px; border:1px solid #D1D5DB; border-radius:8px; background:white; color:#374151; cursor:pointer; font-size:13px; font-weight:600; }
-      .print-action:hover { background:#F8FAFB; }
-      .print-action.primary { border-color:#1D9E75; background:#1D9E75; color:white; }
-      .print-action.primary:hover { background:#168862; }
-      @media print { .print-toolbar { display:none; } body { padding:32px; } }
+      @media print { body { padding:32px; } }
     </style>
-    <script>
-      function goBackToApp() {
-        if (window.opener && !window.opener.closed) {
-          window.close();
-          return;
-        }
-        if (history.length > 1) history.back();
-      }
-    </script>
   </head><body>
-    <div class="print-toolbar">
-      <button class="print-action" onclick="goBackToApp()">← กลับ / Back</button>
-      <button class="print-action primary" onclick="window.print()">พิมพ์ / Print</button>
-    </div>
     <div class="zg-header">
       <div>
         <div class="zg-logo">ZG Inventory Stock</div>
         <div class="zg-sub">ระบบจัดการคลังสินค้า · ZG Rayong Plant · WHA</div>
       </div>
       <div style="text-align:right">
-        <h2>${title}</h2>
+        <h2>${safeTitle}</h2>
         <div class="zg-sub">พิมพ์วันที่ ${new Date().toLocaleDateString('th-TH',{day:'2-digit',month:'long',year:'numeric'})}</div>
       </div>
     </div>
     ${bodyHtml}
     <div class="zg-footer">ZG Industries (Thailand) Limited · Rayong Plant · ระบบจัดการคลังสินค้า v2.0</div>
-  </body></html>`);
-  w.document.close();
+  </body></html>`;
+
+  const previousOverflow = document.body.style.overflow;
+  const preview = document.createElement('div');
+  preview.id = 'zg-print-preview';
+  preview.setAttribute('role', 'dialog');
+  preview.setAttribute('aria-modal', 'true');
+  preview.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;background:#070C0F;color:#E5E7EB;';
+  preview.innerHTML = `
+    <div style="min-height:64px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 18px;background:#11181C;border-bottom:1px solid #243038;">
+      <div style="min-width:0;">
+        <div style="font-size:11px;line-height:1.2;text-transform:uppercase;letter-spacing:.12em;color:#9CA3AF;">Print Preview</div>
+        <div style="margin-top:3px;font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${safeTitle}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+        <button type="button" data-print-close style="min-height:42px;padding:9px 15px;border:1px solid #35444D;border-radius:8px;background:#162025;color:#E5E7EB;font:600 14px 'IBM Plex Sans','IBM Plex Sans Thai',system-ui,sans-serif;cursor:pointer;">← กลับ / Back</button>
+        <button type="button" data-print-action style="min-height:42px;padding:9px 18px;border:1px solid #1D9E75;border-radius:8px;background:#1D9E75;color:white;font:700 14px 'IBM Plex Sans','IBM Plex Sans Thai',system-ui,sans-serif;cursor:pointer;">พิมพ์ / Print</button>
+      </div>
+    </div>
+    <div style="flex:1;min-height:0;padding:16px;background:#0B1114;overflow:auto;">
+      <iframe title="${safeTitle}" style="display:block;width:min(100%,980px);height:100%;min-height:720px;margin:0 auto;border:0;border-radius:8px;background:white;box-shadow:0 24px 80px rgba(0,0,0,.38);"></iframe>
+    </div>`;
+
+  const closePreview = () => {
+    document.body.style.overflow = previousOverflow;
+    window.removeEventListener('keydown', handleKeydown);
+    preview.remove();
+  };
+  const handleKeydown = event => {
+    if (event.key === 'Escape') closePreview();
+  };
+
+  document.body.style.overflow = 'hidden';
+  preview.__zgClosePreview = closePreview;
+  document.body.appendChild(preview);
+
+  const frame = preview.querySelector('iframe');
+  frame.srcdoc = printHtml;
+  preview.querySelector('[data-print-close]').addEventListener('click', closePreview);
+  preview.querySelector('[data-print-action]').addEventListener('click', () => {
+    const printTarget = frame.contentWindow;
+    if (!printTarget) { Toast.push('ไม่สามารถพิมพ์เอกสารได้', 'danger'); return; }
+    printTarget.focus();
+    printTarget.print();
+  });
+  window.addEventListener('keydown', handleKeydown);
 }
 
 // expose
