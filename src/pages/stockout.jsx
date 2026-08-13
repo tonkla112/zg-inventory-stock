@@ -322,6 +322,34 @@ function SOSaveConfirmation({ so, items, customers, onClose, onView, lang }) {
   );
 }
 
+function localISODate(date = new Date()) {
+  const d = new Date(date);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+}
+
+function historyStartDate(range) {
+  const today = new Date();
+  if (range === 'today') return localISODate(today);
+  if (range === 'week') {
+    const start = new Date(today);
+    const day = start.getDay();
+    start.setDate(start.getDate() + (day === 0 ? -6 : 1 - day));
+    return localISODate(start);
+  }
+  if (range === 'month') {
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
+  }
+  return '';
+}
+
+function isSOInDateRange(so, range) {
+  if (range === 'all') return true;
+  const start = historyStartDate(range);
+  const end = localISODate();
+  return so.date >= start && so.date <= end;
+}
+
 function StockOutPage({ store, lang }) {
   const t = (th, en) => lang === 'en' ? en : th;
   const { state, actions } = store;
@@ -335,6 +363,7 @@ function StockOutPage({ store, lang }) {
   const [viewSO, setViewSO] = useState(null);
   const [savedSO, setSavedSO] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [historyRange, setHistoryRange] = useState('all');
 
   const itemMap = useMemo(() => new Map(state.items.map(i => [i.code, i])), [state.items]);
   const custMap = useMemo(() => new Map(state.customers.map(c => [c.code, c])), [state.customers]);
@@ -387,10 +416,27 @@ function StockOutPage({ store, lang }) {
     setLines([{ uid: 1, code:'', qty:1 }]); setCustCode(''); setShipping(0); setDiscount(0); setSigData(null);
   }
 
-  // SO history: most recent first, limit 20
+  const historyFilters = [
+    { value: 'all', label: t('ทั้งหมด', 'All') },
+    { value: 'today', label: t('วันนี้', 'Today') },
+    { value: 'week', label: t('สัปดาห์นี้', 'This Week') },
+    { value: 'month', label: t('เดือนนี้', 'This Month') },
+  ];
+  const historyCounts = useMemo(() => {
+    const rows = state.sos || [];
+    return {
+      all: rows.length,
+      today: rows.filter(so => isSOInDateRange(so, 'today')).length,
+      week: rows.filter(so => isSOInDateRange(so, 'week')).length,
+      month: rows.filter(so => isSOInDateRange(so, 'month')).length,
+    };
+  }, [state.sos]);
+
+  // SO history: most recent first, filtered by quick date range
   const recentSOs = useMemo(() => [...(state.sos || [])]
+    .filter(so => isSOInDateRange(so, historyRange))
     .sort((a,b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
-    .slice(0, 20), [state.sos]);
+    .slice(0, 50), [state.sos, historyRange]);
 
   return (
     <div className="space-y-5">
@@ -529,12 +575,45 @@ function StockOutPage({ store, lang }) {
       </Card>
 
       {/* Withdrawal history */}
-      <Card padded={false} title={t('ประวัติการเบิกสินค้า', 'Withdrawal History')} subtitle="Recent withdrawals">
+      <Card
+        padded={false}
+        title={t('ประวัติการเบิกสินค้า', 'Withdrawal History')}
+        subtitle={t('Recent withdrawals', 'Recent withdrawals')}
+        action={
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 max-w-[min(72vw,560px)]">
+            <Badge tone="neutral" size="md">
+              <span className="kbd">{fmtInt(historyCounts[historyRange] || 0)}</span>
+              <span>{t('รายการ', 'records')}</span>
+            </Badge>
+            <div className="inline-flex max-w-full overflow-x-auto scrollbar-thin items-center gap-1 rounded-lg border border-line bg-page p-1">
+              {historyFilters.map(filter => (
+                <button
+                  key={filter.value}
+                  onClick={() => setHistoryRange(filter.value)}
+                  className={`h-8 px-3 rounded-md text-[12.5px] font-medium transition-colors whitespace-nowrap shrink-0 ${
+                    historyRange === filter.value
+                      ? 'bg-white text-brand-700 shadow-sm border border-line'
+                      : 'text-ink-mute hover:text-ink hover:bg-white/60'
+                  }`}>
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        }>
         {recentSOs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-14 text-ink-faint gap-2">
             <Icon.PDF size={32}/>
-            <p className="text-[13px]">{t('ยังไม่มีประวัติการเบิกสินค้า', 'No withdrawals yet')}</p>
-            <p className="text-[12px] text-ink-faint/60">{t('สร้างใบเบิกแรกด้านบน', 'Create your first withdrawal above')}</p>
+            <p className="text-[13px]">
+              {historyRange === 'all'
+                ? t('ยังไม่มีประวัติการเบิกสินค้า', 'No withdrawals yet')
+                : t('ไม่พบประวัติการเบิกในช่วงวันที่นี้', 'No withdrawals in this date range')}
+            </p>
+            <p className="text-[12px] text-ink-faint/60">
+              {historyRange === 'all'
+                ? t('สร้างใบเบิกแรกด้านบน', 'Create your first withdrawal above')
+                : t('เลือกทั้งหมดเพื่อดูรายการเก่ากว่า', 'Choose All to see older records')}
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
