@@ -6,6 +6,7 @@ const sourceFiles = [
   'src/components.jsx',
   'src/data.jsx',
   'src/pages/dashboard.jsx',
+  'src/pages/alerts.jsx',
   'src/pages/items.jsx',
   'src/pages/stockin.jsx',
   'src/pages/stockout.jsx',

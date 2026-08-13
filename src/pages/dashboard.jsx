@@ -23,6 +23,8 @@ function DashboardPage({ store, nav, lang }) {
 
   const stockRows = useMemo(() => state.items.map(i => ({ ...i, qty: stockMap.get(i.code) || 0 })), [state.items, stockMap]);
   const outOfStock = useMemo(() => stockRows.filter(i => i.qty === 0), [stockRows]);
+  const lowStock = useMemo(() => stockRows.filter(i => i.qty > 0 && i.qty < 10), [stockRows]);
+  const stockAlerts = useMemo(() => [...outOfStock, ...lowStock].sort((a,b) => a.qty - b.qty || a.code.localeCompare(b.code)), [outOfStock, lowStock]);
 
   // top 5 by stock
   const top5 = useMemo(() => [...stockRows].sort((a,b) => b.qty - a.qty).slice(0, 5), [stockRows]);
@@ -163,17 +165,17 @@ function DashboardPage({ store, nav, lang }) {
 
       {/* Low stock alert */}
       <Card padded={false}
-        title={t('แจ้งเตือนสินค้าหมดสต๊อก', 'Out-of-Stock Alerts')}
+        title={t('แจ้งเตือนสินค้าใกล้หมด', 'Low Stock Alerts')}
         subtitle={t('Low stock & out-of-stock alerts', 'Low stock & out-of-stock alerts')}
         action={
           <div className="flex items-center gap-2">
-            <Badge tone="danger" icon={<Icon.Bolt size={11}/>}>{outOfStock.length} {t('รายการ', 'items')}</Badge>
-            <Button variant="soft" size="sm" icon={<Icon.Inbox size={14}/>} onClick={() => nav('stockin')}>{t('สั่งซื้อเข้าคลัง', 'Order Stock In')}</Button>
+            <Badge tone={stockAlerts.length ? 'danger' : 'good'} icon={<Icon.Bolt size={11}/>}>{stockAlerts.length} {t('รายการ', 'items')}</Badge>
+            <Button variant="soft" size="sm" icon={<Icon.ChevronRight size={14}/>} onClick={() => nav('alerts')}>{t('ดูแจ้งเตือน', 'View Alerts')}</Button>
           </div>
         }
       >
-        {outOfStock.length === 0 ? (
-          <Empty title={t('ไม่มีสินค้าหมดสต๊อก', 'No out-of-stock items')} hint={t('สินค้าทั้งหมดอยู่ในระดับปลอดภัย', 'All items are at safe levels')} icon={<Icon.Check/>}/>
+        {stockAlerts.length === 0 ? (
+          <Empty title={t('ไม่มีสินค้าใกล้หมด', 'No low-stock items')} hint={t('สินค้าทั้งหมดอยู่ในระดับปลอดภัย', 'All items are at safe levels')} icon={<Icon.Check/>}/>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-[13.5px]">
@@ -188,15 +190,15 @@ function DashboardPage({ store, nav, lang }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {outOfStock.map(it => (
+                {stockAlerts.slice(0, 8).map(it => (
                   <tr key={it.code} className="row-hover">
                     <td className="px-5 py-3"><span className="kbd text-[12.5px] text-ink-soft">{it.code}</span></td>
                     <td className="px-5 py-3 font-medium">{it.name}</td>
-                    <td className="px-5 py-3 text-right kbd font-semibold text-danger-fg">0</td>
+                    <td className={`px-5 py-3 text-right kbd font-semibold ${it.qty === 0 ? 'text-danger-fg' : 'text-amber2-fg'}`}>{fmtInt(it.qty)}</td>
                     <td className="px-5 py-3 text-ink-mute">{it.unit}</td>
-                    <td className="px-5 py-3"><StockStatus qty={0}/></td>
+                    <td className="px-5 py-3"><StockStatus qty={it.qty}/></td>
                     <td className="px-5 py-3 text-right">
-                      <Button variant="danger" size="sm" icon={<Icon.Bolt size={13}/>} onClick={() => nav('stockin')}>{t('สั่งซื้อด่วน', 'Urgent Order')}</Button>
+                      <Button variant="danger" size="sm" icon={<Icon.Bolt size={13}/>} onClick={() => nav('stockin')}>{t('เติมสต๊อก', 'Restock')}</Button>
                     </td>
                   </tr>
                 ))}
