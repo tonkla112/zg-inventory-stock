@@ -23,7 +23,7 @@ function escapeAlertHTML(value) {
   }[c]));
 }
 
-function AlertsPage({ store, nav, lang }) {
+function AlertsPage({ store, nav, lang, canRestock = true }) {
   const t = (th, en) => lang === 'en' ? en : th;
   const { state, stockMap } = store;
   const [q, setQ] = useState('');
@@ -225,7 +225,7 @@ function AlertsPage({ store, nav, lang }) {
                   <th className="text-left font-medium px-5 py-2.5 label-cap">{t('หน่วย', 'Unit')}</th>
                   <th className="text-left font-medium px-5 py-2.5 label-cap">{t('สถานะ', 'Status')}</th>
                   <th className="text-right font-medium px-5 py-2.5 label-cap">{t('แนะนำสั่งเพิ่ม', 'Suggested Reorder')}</th>
-                  <th className="text-right font-medium px-5 py-2.5 label-cap">Action</th>
+                  {canRestock && <th className="text-right font-medium px-5 py-2.5 label-cap">Action</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -252,11 +252,13 @@ function AlertsPage({ store, nav, lang }) {
                     <td className="px-5 py-3 text-right kbd tabular-nums font-medium">
                       {row.reorderQty ? fmtInt(row.reorderQty) : '—'}
                     </td>
-                    <td className="px-5 py-3 text-right">
-                      <Button variant={row.qty < LOW_STOCK_LIMIT ? 'danger' : 'secondary'} size="sm" icon={<Icon.Inbox size={13}/>} onClick={() => nav('stockin')}>
-                        {row.qty < LOW_STOCK_LIMIT ? t('เติมสต๊อก', 'Restock') : t('รับเข้า', 'Stock In')}
-                      </Button>
-                    </td>
+                    {canRestock && (
+                      <td className="px-5 py-3 text-right">
+                        <Button variant={row.qty < LOW_STOCK_LIMIT ? 'danger' : 'secondary'} size="sm" icon={<Icon.Inbox size={13}/>} onClick={() => nav('stockin')}>
+                          {row.qty < LOW_STOCK_LIMIT ? t('เติมสต๊อก', 'Restock') : t('รับเข้า', 'Stock In')}
+                        </Button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

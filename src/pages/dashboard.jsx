@@ -1,5 +1,5 @@
 // Dashboard page
-function DashboardPage({ store, nav, lang }) {
+function DashboardPage({ store, nav, lang, canRestock = true }) {
   const t = (th, en) => lang === 'en' ? en : th;
   const { state, stockMap, actions } = store;
   const today = todayISO();
@@ -186,7 +186,7 @@ function DashboardPage({ store, nav, lang }) {
                   <th className="text-right font-medium px-5 py-2.5 label-cap">{t('คงเหลือ', 'Balance')}</th>
                   <th className="text-left font-medium px-5 py-2.5 label-cap">{t('หน่วย', 'Unit')}</th>
                   <th className="text-left font-medium px-5 py-2.5 label-cap">{t('สถานะ', 'Status')}</th>
-                  <th className="text-right font-medium px-5 py-2.5 label-cap">Action</th>
+                  {canRestock && <th className="text-right font-medium px-5 py-2.5 label-cap">Action</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -197,9 +197,11 @@ function DashboardPage({ store, nav, lang }) {
                     <td className={`px-5 py-3 text-right kbd font-semibold ${it.qty === 0 ? 'text-danger-fg' : 'text-amber2-fg'}`}>{fmtInt(it.qty)}</td>
                     <td className="px-5 py-3 text-ink-mute">{it.unit}</td>
                     <td className="px-5 py-3"><StockStatus qty={it.qty}/></td>
-                    <td className="px-5 py-3 text-right">
-                      <Button variant="danger" size="sm" icon={<Icon.Bolt size={13}/>} onClick={() => nav('stockin')}>{t('เติมสต๊อก', 'Restock')}</Button>
-                    </td>
+                    {canRestock && (
+                      <td className="px-5 py-3 text-right">
+                        <Button variant="danger" size="sm" icon={<Icon.Bolt size={13}/>} onClick={() => nav('stockin')}>{t('เติมสต๊อก', 'Restock')}</Button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

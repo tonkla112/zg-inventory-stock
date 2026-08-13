@@ -81,18 +81,23 @@ function MainApp({ auth, onLogout, dark, setDark, lang, setLang }) {
     if (!nav.find(n => n.key === page)) setPage('dashboard');
   }, [role]);
 
-  const currentNav = useMemo(() => nav.find(n => n.key === page), [nav, page]);
+  const activePage = useMemo(() => nav.find(n => n.key === page) ? page : 'dashboard', [nav, page]);
+  const currentNav = useMemo(() => nav.find(n => n.key === activePage), [nav, activePage]);
   const stockAlertCount = useMemo(() => store.state.items.filter(i => (store.stockMap.get(i.code) || 0) < 10).length, [store.state.items, store.stockMap]);
 
   // Early return is safe now — all hooks have already been called above
   if (!store.ready) return <Loader text="กำลังโหลดข้อมูลจาก Database..."/>;
 
   const can = { write: role !== 'viewer', settings: role === 'admin' };
+  const goPage = (nextPage) => {
+    if (nav.find(n => n.key === nextPage)) setPage(nextPage);
+    else Toast.push(t('บัญชี Viewer ไม่สามารถรับเข้าสินค้าได้', 'Viewer accounts cannot restock items'), 'danger');
+  };
 
   const pageEl = (() => {
-    switch (page) {
-      case 'dashboard': return <DashboardPage store={store} nav={setPage} lang={lang}/>;
-      case 'alerts':    return <AlertsPage store={store} nav={setPage} lang={lang}/>;
+    switch (activePage) {
+      case 'dashboard': return <DashboardPage store={store} nav={goPage} lang={lang} canRestock={can.write}/>;
+      case 'alerts':    return <AlertsPage store={store} nav={goPage} lang={lang} canRestock={can.write}/>;
       case 'items':     return <ItemsPage store={store} lang={lang} canEdit={can.write}/>;
       case 'stockin':   return <StockInPage store={store} lang={lang}/>;
       case 'stockout':  return <StockOutPage store={store} lang={lang} auth={auth}/>;
