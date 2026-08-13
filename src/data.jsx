@@ -2,6 +2,9 @@
 const _db = () => window.ZG_SUPABASE;
 const SIGNATURE_STORE_KEY = 'zg-signatures-v1';
 
+function normalizeSignatureData(signatureData) {
+  return typeof signatureData === 'string' && signatureData.startsWith('data:image/') ? signatureData : '';
+}
 function readSignatureStore() {
   try {
     return JSON.parse(window.localStorage?.getItem(SIGNATURE_STORE_KEY) || '{}') || {};
@@ -11,13 +14,14 @@ function readSignatureStore() {
 }
 function getStoredSignature(id) {
   const data = readSignatureStore()[id];
-  return typeof data === 'string' && data.startsWith('data:image/') ? data : '';
+  return normalizeSignatureData(data);
 }
 function saveStoredSignature(id, signatureData) {
-  if (typeof signatureData !== 'string' || !signatureData.startsWith('data:image/')) return;
+  const data = normalizeSignatureData(signatureData);
+  if (!data) return;
   try {
     const store = readSignatureStore();
-    store[id] = signatureData;
+    store[id] = data;
     window.localStorage?.setItem(SIGNATURE_STORE_KEY, JSON.stringify(store));
   } catch (e) {}
 }
@@ -27,6 +31,10 @@ function removeStoredSignature(id) {
     delete store[id];
     window.localStorage?.setItem(SIGNATURE_STORE_KEY, JSON.stringify(store));
   } catch (e) {}
+}
+function isMissingSignatureColumn(error) {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('signature_data') && (message.includes('column') || message.includes('schema cache'));
 }
 
 // ---- Compute helpers (unchanged from original) ----
@@ -67,8 +75,8 @@ const mapPO = r => ({
 });
 const mapSO = (r, lines = []) => ({
   id: r.id, date: r.date, custCode: r.cust_code,
-  shipping: +r.shipping, discount: +r.discount, sig: r.has_sig,
-  signatureData: getStoredSignature(r.id),
+  shipping: +r.shipping, discount: +r.discount, sig: r.has_sig || !!normalizeSignatureData(r.signature_data),
+  signatureData: normalizeSignatureData(r.signature_data) || getStoredSignature(r.id),
   lines: lines.map(l => ({ id: l.id, code: l.item_code, qty: l.qty, price: +l.price })),
 });
 
@@ -145,18 +153,26 @@ function useStore() {
     // ---- Sale Orders ----
     async addSO(so) {
       const id = nextId('SO', stateRef.current.sos);
-      const nextSO = { ...so, id };
+      const signatureData = normalizeSignatureData(so.signatureData);
+      const hasSignature = !!so.sig || !!signatureData;
+      const nextSO = { ...so, id, sig: hasSignature, signatureData };
       setState(s => ({ ...s, sos: [nextSO, ...s.sos] }));
-      const { error: e1 } = await _db().from('sale_orders').insert({
+      const headerRow = {
         id, date: so.date, cust_code: so.custCode,
-        shipping: so.shipping || 0, discount: so.discount || 0, has_sig: so.sig || false,
-      });
+        shipping: so.shipping || 0, discount: so.discount || 0,
+        has_sig: hasSignature, signature_data: signatureData,
+      };
+      let { error: e1 } = await _db().from('sale_orders').insert(headerRow);
+      if (isMissingSignatureColumn(e1)) {
+        const { signature_data, ...fallbackRow } = headerRow;
+        ({ error: e1 } = await _db().from('sale_orders').insert(fallbackRow));
+      }
       if (e1) {
         setState(s => ({ ...s, sos: s.sos.filter(x => x.id !== id) }));
         Toast.push('บันทึก SO ไม่สำเร็จ: ' + e1.message, 'danger');
         return false;
       }
-      saveStoredSignature(id, so.signatureData);
+      saveStoredSignature(id, signatureData);
       if (so.lines && so.lines.length > 0) {
         const rows = so.lines.map(l => ({ so_id: id, item_code: l.code, qty: l.qty, price: l.price || 0 }));
         const { error: e2 } = await _db().from('sale_order_lines').insert(rows);

@@ -50,8 +50,12 @@ CREATE TABLE IF NOT EXISTS sale_orders (
   shipping    NUMERIC(12,2) DEFAULT 0,
   discount    NUMERIC(12,2) DEFAULT 0,
   has_sig     BOOLEAN DEFAULT false,
+  signature_data TEXT DEFAULT '',
   created_at  TIMESTAMPTZ DEFAULT now()
 );
+
+-- เพิ่ม column นี้ให้ database เดิมที่สร้าง table ไปแล้ว
+ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS signature_data TEXT DEFAULT '';
 
 -- รายการสินค้าในใบเบิก (Sale Order Lines)
 CREATE TABLE IF NOT EXISTS sale_order_lines (
