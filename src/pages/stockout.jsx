@@ -325,8 +325,8 @@ function StockOutPage({ store, lang }) {
       />
 
       {/* Header info */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2" title={t('ข้อมูลใบขาย', 'Sale Order Info')} subtitle="Sale Order header"
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(430px,520px)] gap-4">
+        <Card title={t('ข้อมูลใบขาย', 'Sale Order Info')} subtitle="Sale Order header"
           action={<Badge tone="brand" size="md" icon={<Icon.Hash size={11}/>}><span className="kbd">{nextSO}</span></Badge>}>
           <div className="grid grid-cols-2 gap-4">
             <Field label={t('เลขที่ SO', 'SO Number')}>
@@ -357,8 +357,8 @@ function StockOutPage({ store, lang }) {
         </Card>
 
         {/* Signature pad */}
-        <Card title={t('ลายเซ็นผู้รับสินค้า', 'Recipient Signature')} subtitle="Recipient signature" padded={false}>
-          <div className="p-5">
+        <Card className="xl:min-h-full" title={t('ลายเซ็นผู้รับสินค้า', 'Recipient Signature')} subtitle="Recipient signature" padded={false}>
+          <div className="p-5 md:p-6">
             <SignaturePad value={sigData} onChange={setSigData} lang={lang}/>
             <p className="mt-2 text-[12px] text-ink-mute">{t('เซ็นชื่อด้วยปากกา/นิ้วบนหน้าจอ', 'Sign with pen or finger on screen')}</p>
           </div>
@@ -541,18 +541,31 @@ function SignaturePad({ value, onChange, lang }) {
   useEffect(() => {
     const cv = canvasRef.current;
     if (!cv) return;
-    const ctx = cv.getContext('2d');
-    const ratio = window.devicePixelRatio || 1;
-    const rect = cv.getBoundingClientRect();
-    cv.width = rect.width * ratio;
-    cv.height = rect.height * ratio;
-    ctx.scale(ratio, ratio);
-    const isDark = document.documentElement.classList.contains('dark');
-    ctx.strokeStyle = isDark ? '#E5E7EB' : '#1A1A2E';
-    ctx.lineWidth = 1.8;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-  }, []);
+
+    function prepareCanvas() {
+      const ctx = cv.getContext('2d');
+      const ratio = window.devicePixelRatio || 1;
+      const rect = cv.getBoundingClientRect();
+      cv.width = rect.width * ratio;
+      cv.height = rect.height * ratio;
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      const isDark = document.documentElement.classList.contains('dark');
+      ctx.strokeStyle = isDark ? '#E5E7EB' : '#1A1A2E';
+      ctx.lineWidth = 2.2;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      if (value) {
+        const img = new Image();
+        img.onload = () => ctx.drawImage(img, 0, 0, rect.width, rect.height);
+        img.src = value;
+      }
+    }
+
+    prepareCanvas();
+    window.addEventListener('resize', prepareCanvas);
+    return () => window.removeEventListener('resize', prepareCanvas);
+  }, [value]);
 
   function pos(e) {
     const cv = canvasRef.current;
@@ -582,7 +595,7 @@ function SignaturePad({ value, onChange, lang }) {
     <div>
       <div className="relative rounded-lg border border-line2 bg-white overflow-hidden">
         <canvas ref={canvasRef}
-          className="block w-full h-40 touch-none"
+          className="block w-full h-52 sm:h-60 md:h-72 xl:h-[300px] touch-none"
           onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end}
           onTouchStart={start} onTouchMove={move} onTouchEnd={end}/>
         {!value && (
