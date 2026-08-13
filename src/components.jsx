@@ -129,14 +129,17 @@ function Tabs({ items, value, onChange }) {
 }
 
 // ---- Modal
-function Modal({ open, onClose, title, children, width='max-w-lg', footer }) {
+function Modal({ open, onClose, title, children, width='max-w-lg', footer, headerAction }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-ink/30 backdrop-blur-[1px]" onClick={onClose}></div>
       <div className={`relative bg-white rounded-card border border-line shadow-pop w-full ${width}`}>
         <header className="flex items-center justify-between px-5 h-12 border-b border-line">
-          <h3 className="text-[15px] font-semibold">{title}</h3>
+          <div className="flex items-center gap-2 min-w-0">
+            {headerAction}
+            <h3 className="text-[15px] font-semibold truncate">{title}</h3>
+          </div>
           <button onClick={onClose} className="p-1.5 -mr-1.5 rounded hover:bg-page text-ink-mute"><Icon.X size={16}/></button>
         </header>
         <div className="p-5">{children}</div>

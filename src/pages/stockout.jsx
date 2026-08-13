@@ -330,9 +330,14 @@ function SOEditModal({ so, items, customers, onClose, onSave, lang }) {
 
   return (
     <Modal open onClose={onClose} title={`${t('แก้ไขใบเบิกสินค้า', 'Edit Withdrawal')} · ${so.id}`} width="max-w-5xl"
+      headerAction={
+        <Button variant="ghost" size="sm" icon={<Icon.ChevronLeft size={14}/>} onClick={onClose}>
+          {t('กลับ', 'Back')}
+        </Button>
+      }
       footer={
         <React.Fragment>
-          <Button variant="ghost" onClick={onClose}>{t('ปิด', 'Close')}</Button>
+          <Button variant="ghost" icon={<Icon.ChevronLeft size={14}/>} onClick={onClose}>{t('กลับ', 'Back')}</Button>
           <Button variant="primary" icon={<Icon.Save size={15}/>} disabled={busy} onClick={submit}>
             {busy ? t('กำลังบันทึก...', 'Saving...') : t('บันทึกการแก้ไข', 'Save Changes')}
           </Button>
