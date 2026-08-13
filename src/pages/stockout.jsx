@@ -127,7 +127,7 @@ function buildSOPrintHTML(so, items, customers, lang) {
     </div>`;
 }
 
-function SODetailModal({ so, items, customers, onClose, lang }) {
+function SODetailModal({ so, items, customers, onClose, onEdit, onCancel, lang }) {
   const t = (th, en) => lang === 'en' ? en : th;
   const itemMap = new Map(items.map(i => [i.code, i]));
   const custMap = new Map(customers.map(c => [c.code, c]));
@@ -154,6 +154,8 @@ function SODetailModal({ so, items, customers, onClose, lang }) {
             <div className="text-[12px] text-ink-mute mt-0.5">Sale Order Detail — <span className="kbd">{so.id}</span></div>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="secondary" size="sm" icon={<Icon.Edit size={14}/>} onClick={() => onEdit?.(so)}>{t('แก้ไข', 'Edit')}</Button>
+            <Button variant="danger" size="sm" icon={<Icon.X size={14}/>} onClick={() => onCancel?.(so)}>{t('ยกเลิก SO', 'Cancel SO')}</Button>
             <Button variant="info" size="sm" icon={<Icon.Print size={14}/>} onClick={handlePrint}>{t('พิมพ์', 'Print')}</Button>
             <IconButton icon={<Icon.X size={16}/>} onClick={onClose}/>
           </div>
@@ -249,11 +251,239 @@ function SODetailModal({ so, items, customers, onClose, lang }) {
                 <span>{t('ราคาสุทธิ / Net', 'Net / ราคาสุทธิ')}</span>
                 <span className="kbd text-brand-700 font-bold">{fmtTHB(net)}</span>
               </div>
+              {so.audit?.length > 0 && (
+                <div className="mt-3 rounded-lg border border-line bg-page p-3">
+                  <div className="label-cap text-ink-faint mb-1">{t('บันทึกการแก้ไขล่าสุด', 'Latest Change Note')}</div>
+                  <div className="text-[12.5px] text-ink-soft leading-relaxed">
+                    {so.audit[so.audit.length - 1].reason}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+function SOEditModal({ so, items, customers, onClose, onSave, lang }) {
+  const t = (th, en) => lang === 'en' ? en : th;
+  const [form, setForm] = useState(() => ({
+    date: so.date,
+    custCode: so.custCode,
+    shipping: so.shipping || 0,
+    discount: so.discount || 0,
+    lines: so.lines.map((line, idx) => ({ uid: idx + 1, code: line.code, qty: line.qty, id: line.id, price: line.price || 0 })),
+    reason: '',
+  }));
+  const [busy, setBusy] = useState(false);
+  const itemMap = useMemo(() => new Map(items.map(item => [item.code, item])), [items]);
+  const custMap = useMemo(() => new Map(customers.map(c => [c.code, c])), [customers]);
+  const cust = custMap.get(form.custCode);
+  const subtotal = useMemo(() => form.lines.reduce((sum, line) => {
+    const item = itemMap.get(line.code);
+    return sum + (item ? item.sell * (line.qty || 0) : 0);
+  }, 0), [form.lines, itemMap]);
+  const net = subtotal + (+form.shipping || 0) - (+form.discount || 0);
+
+  function setField(key, value) {
+    setForm(current => ({ ...current, [key]: value }));
+  }
+  function setLine(uid, patch) {
+    setForm(current => ({
+      ...current,
+      lines: current.lines.map(line => line.uid === uid ? { ...line, ...patch } : line),
+    }));
+  }
+  function addLine() {
+    setForm(current => ({
+      ...current,
+      lines: [...current.lines, { uid: Math.max(0, ...current.lines.map(line => line.uid)) + 1, code: '', qty: 1 }],
+    }));
+  }
+  function removeLine(uid) {
+    setForm(current => ({
+      ...current,
+      lines: current.lines.length > 1 ? current.lines.filter(line => line.uid !== uid) : current.lines,
+    }));
+  }
+  async function submit() {
+    if (busy) return;
+    const cleanReason = form.reason.trim();
+    if (!cleanReason) { Toast.push(t('กรุณาระบุเหตุผลการแก้ไข', 'Please enter an edit reason'), 'danger'); return; }
+    const validLines = form.lines.filter(line => line.code && itemMap.has(line.code) && line.qty > 0);
+    if (validLines.length === 0) { Toast.push(t('กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ', 'Please add at least 1 item'), 'danger'); return; }
+    setBusy(true);
+    const ok = await onSave(so.id, {
+      date: form.date,
+      custCode: form.custCode,
+      shipping: +form.shipping || 0,
+      discount: +form.discount || 0,
+      sig: so.sig,
+      signatureData: so.signatureData,
+      lines: validLines.map(line => ({ id: line.id, code: line.code, qty: +line.qty, price: line.price || 0 })),
+    }, cleanReason);
+    setBusy(false);
+    if (ok) onClose();
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`${t('แก้ไขใบเบิกสินค้า', 'Edit Withdrawal')} · ${so.id}`} width="max-w-5xl"
+      footer={
+        <React.Fragment>
+          <Button variant="ghost" onClick={onClose}>{t('ปิด', 'Close')}</Button>
+          <Button variant="primary" icon={<Icon.Save size={15}/>} disabled={busy} onClick={submit}>
+            {busy ? t('กำลังบันทึก...', 'Saving...') : t('บันทึกการแก้ไข', 'Save Changes')}
+          </Button>
+        </React.Fragment>
+      }>
+      <div className="space-y-4">
+        <div className="rounded-lg border border-amber2-bg bg-amber2-bg/40 p-3 text-[12.5px] text-amber2-fg leading-relaxed">
+          {t('การแก้ไขใบเบิกที่บันทึกแล้วต้องระบุเหตุผล เพื่อให้ตรวจสอบย้อนหลังได้', 'Editing a saved withdrawal requires a reason for later review.')}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Field label={t('วันที่ / Date', 'Date / วันที่')} required>
+            <Input type="date" prefix={<Icon.Calendar size={13}/>} value={form.date} onChange={e => setField('date', e.target.value)}/>
+          </Field>
+          <Field label={t('รหัสลูกค้า / Customer', 'Customer / รหัสลูกค้า')} required>
+            <Select value={form.custCode} onChange={e => setField('custCode', e.target.value)}>
+              {customers.map(c => <option key={c.code} value={c.code}>{c.code} — {c.name} ({c.dept})</option>)}
+            </Select>
+          </Field>
+          <Field label={t('ชื่อผู้รับ / Name', 'Name / ชื่อผู้รับ')}>
+            <Input value={cust?.name || ''} readOnly placeholder="—"/>
+          </Field>
+          <Field label={t('แผนก / Department', 'Department / แผนก')}>
+            <Input value={cust?.dept || ''} readOnly placeholder="—"/>
+          </Field>
+        </div>
+
+        <div className="rounded-lg border border-line overflow-hidden">
+          <div className="px-4 py-3 border-b border-line flex items-center justify-between bg-page">
+            <div>
+              <div className="font-semibold text-[14px]">{t('รายการสินค้า', 'Line Items')}</div>
+              <div className="text-[12px] text-ink-mute">{t('แก้ไขรหัสสินค้าและจำนวนที่เบิก', 'Edit item codes and withdrawal quantities')}</div>
+            </div>
+            <Button variant="soft" size="sm" icon={<Icon.Plus size={14}/>} onClick={addLine}>{t('เพิ่มสินค้า', 'Add Item')}</Button>
+          </div>
+          <div className="overflow-x-auto scrollbar-thin">
+            <table className="w-full text-[13px]">
+              <thead className="bg-page border-b border-line text-ink-mute">
+                <tr>
+                  <th className="text-left font-medium px-3 py-2 label-cap w-10">#</th>
+                  <th className="text-left font-medium px-3 py-2 label-cap w-[180px]">{t('รหัสสินค้า', 'Item Code')}</th>
+                  <th className="text-left font-medium px-3 py-2 label-cap">{t('ชื่อสินค้า', 'Item Name')}</th>
+                  <th className="text-right font-medium px-3 py-2 label-cap w-[120px]">{t('จำนวน', 'Qty')}</th>
+                  <th className="text-right font-medium px-3 py-2 label-cap w-[140px]">{t('จำนวนเงิน', 'Amount')}</th>
+                  <th className="px-3 py-2 w-10"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {form.lines.map((line, idx) => {
+                  const item = itemMap.get(line.code);
+                  const amount = (item?.sell || 0) * (line.qty || 0);
+                  return (
+                    <tr key={line.uid}>
+                      <td className="px-3 py-2 text-ink-faint kbd text-[12px]">{String(idx + 1).padStart(2, '0')}</td>
+                      <td className="px-3 py-2">
+                        <Input value={line.code} onChange={e => setLine(line.uid, { code: e.target.value })} list="edit-so-item-codes" prefix={<Icon.QR size={13}/>}/>
+                      </td>
+                      <td className="px-3 py-2 text-ink-soft">{item ? `${item.name} · ${item.unit}` : <span className="text-ink-faint">—</span>}</td>
+                      <td className="px-3 py-2">
+                        <Input type="number" min="1" value={line.qty} className="text-right" onChange={e => setLine(line.uid, { qty: +e.target.value })}/>
+                      </td>
+                      <td className="px-3 py-2 text-right kbd font-semibold tabular-nums">{amount ? fmtTHB(amount) : '—'}</td>
+                      <td className="px-3 py-2 text-right">
+                        <IconButton tone="danger" icon={<Icon.Trash size={15}/>} onClick={() => removeLine(line.uid)}/>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <datalist id="edit-so-item-codes">
+              {items.map(item => <option key={item.code} value={item.code}>{item.name}</option>)}
+            </datalist>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-4">
+          <Field label={t('เหตุผลการแก้ไข', 'Edit Reason')} required>
+            <textarea
+              value={form.reason}
+              onChange={e => setField('reason', e.target.value)}
+              placeholder={t('เช่น แก้จำนวนสินค้าเพราะบันทึกผิด', 'Example: corrected quantity entered by mistake')}
+              className="w-full min-h-[92px] rounded-lg border border-line2 bg-white px-3 py-2 text-[14px] placeholder:text-ink-faint focus-ring"/>
+          </Field>
+          <div className="rounded-lg border border-line bg-page p-4 space-y-2.5 text-[13px]">
+            <div className="flex justify-between text-ink-mute"><span>{t('ราคารวม', 'Subtotal')}</span><span className="kbd">{fmtTHB(subtotal)}</span></div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-ink-mute">{t('ค่าขนส่ง', 'Shipping')}</span>
+              <Input type="number" value={form.shipping} prefix="฿" className="w-32" onChange={e => setField('shipping', +e.target.value)}/>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-ink-mute">{t('ส่วนลด', 'Discount')}</span>
+              <Input type="number" value={form.discount} prefix="฿" className="w-32" onChange={e => setField('discount', +e.target.value)}/>
+            </div>
+            <div className="h-px bg-line"/>
+            <div className="flex justify-between font-semibold text-[15px]"><span>{t('ราคาสุทธิ', 'Net')}</span><span className="kbd text-brand-700">{fmtTHB(net)}</span></div>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function SOCancelModal({ so, onClose, onConfirm, lang }) {
+  const t = (th, en) => lang === 'en' ? en : th;
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    if (busy) return;
+    const cleanReason = reason.trim();
+    if (!cleanReason) { Toast.push(t('กรุณาระบุเหตุผลการยกเลิก', 'Please enter a cancel reason'), 'danger'); return; }
+    setBusy(true);
+    const ok = await onConfirm(so.id, cleanReason);
+    setBusy(false);
+    if (ok) onClose();
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`${t('ยกเลิกใบเบิกสินค้า', 'Cancel Withdrawal')} · ${so.id}`} width="max-w-lg"
+      footer={
+        <React.Fragment>
+          <Button variant="ghost" onClick={onClose}>{t('กลับ', 'Back')}</Button>
+          <Button variant="danger" icon={<Icon.X size={15}/>} disabled={busy} onClick={submit}>
+            {busy ? t('กำลังยกเลิก...', 'Canceling...') : t('ยืนยันยกเลิก SO', 'Confirm Cancel SO')}
+          </Button>
+        </React.Fragment>
+      }>
+      <div className="space-y-4">
+        <div className="rounded-lg border border-danger-bg bg-danger-bg p-3 text-[12.5px] text-danger-fg leading-relaxed">
+          {t('การยกเลิกจะลบ SO นี้ออกจากประวัติและคืนสต๊อกตามรายการสินค้าเดิม', 'Canceling removes this SO from history and restores stock from its line items.')}
+        </div>
+        <div className="grid grid-cols-2 gap-3 text-[13px]">
+          <div className="rounded-lg border border-line bg-page p-3">
+            <div className="label-cap text-ink-faint">{t('เลขที่ SO', 'SO Number')}</div>
+            <div className="mt-1 kbd font-semibold text-brand-700">{so.id}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-page p-3">
+            <div className="label-cap text-ink-faint">{t('วันที่', 'Date')}</div>
+            <div className="mt-1">{so.date}</div>
+          </div>
+        </div>
+        <Field label={t('เหตุผลการยกเลิก', 'Cancel Reason')} required>
+          <textarea
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            placeholder={t('เช่น เอกสารถูกสร้างซ้ำ หรือเลือกรายการผิด', 'Example: duplicate document or wrong item selected')}
+            className="w-full min-h-[100px] rounded-lg border border-line2 bg-white px-3 py-2 text-[14px] placeholder:text-ink-faint focus-ring"/>
+        </Field>
+      </div>
+    </Modal>
   );
 }
 
@@ -390,6 +620,8 @@ function StockOutPage({ store, lang }) {
   const [discount, setDiscount] = useState(0);
   const [sigData, setSigData] = useState(null);
   const [viewSO, setViewSO] = useState(null);
+  const [editSO, setEditSO] = useState(null);
+  const [cancelSO, setCancelSO] = useState(null);
   const [savedSO, setSavedSO] = useState(null);
   const [saving, setSaving] = useState(false);
   const [historyRange, setHistoryRange] = useState('all');
@@ -572,6 +804,24 @@ function StockOutPage({ store, lang }) {
           <td></td>
         </tr></tfoot>
       </table>`);
+  }
+
+  async function saveSOEdit(id, patch, reason) {
+    const ok = await actions.updSO(id, patch, reason);
+    if (ok) {
+      setViewSO(null);
+      Toast.push(`${t('แก้ไข SO สำเร็จ', 'SO updated')} ${id}`);
+    }
+    return ok;
+  }
+
+  async function confirmSOCancel(id, reason) {
+    const ok = await actions.cancelSO(id, reason);
+    if (ok) {
+      setViewSO(null);
+      Toast.push(`${t('ยกเลิก SO สำเร็จ', 'SO canceled')} ${id}`);
+    }
+    return ok;
   }
 
   return (
@@ -835,11 +1085,15 @@ function StockOutPage({ store, lang }) {
                         <div className="inline-flex items-center gap-1">
                           <Button variant="soft" size="xs" icon={<Icon.Eye size={13}/>}
                             onClick={() => setViewSO(so)}>{t('ดู', 'View')}</Button>
+                          <Button variant="ghost" size="xs" icon={<Icon.Edit size={13}/>}
+                            onClick={() => setEditSO(so)}>{t('แก้ไข', 'Edit')}</Button>
                           <Button variant="ghost" size="xs" icon={<Icon.Print size={13}/>}
                             onClick={() => {
                               const html = buildSOPrintHTML(so, state.items, state.customers, lang);
                               printWindow(`${t('ใบเบิกสินค้า', 'Sale Order')} ${so.id}`, html);
                             }}>{t('พิมพ์', 'Print')}</Button>
+                          <Button variant="danger" size="xs" icon={<Icon.X size={13}/>}
+                            onClick={() => setCancelSO(so)}>{t('ยกเลิก', 'Cancel')}</Button>
                         </div>
                       </td>
                     </tr>
@@ -858,6 +1112,28 @@ function StockOutPage({ store, lang }) {
           items={state.items}
           customers={state.customers}
           onClose={() => setViewSO(null)}
+          onEdit={(so) => setEditSO(so)}
+          onCancel={(so) => setCancelSO(so)}
+          lang={lang}
+        />
+      )}
+
+      {editSO && (
+        <SOEditModal
+          so={editSO}
+          items={state.items}
+          customers={state.customers}
+          onClose={() => setEditSO(null)}
+          onSave={saveSOEdit}
+          lang={lang}
+        />
+      )}
+
+      {cancelSO && (
+        <SOCancelModal
+          so={cancelSO}
+          onClose={() => setCancelSO(null)}
+          onConfirm={confirmSOCancel}
           lang={lang}
         />
       )}

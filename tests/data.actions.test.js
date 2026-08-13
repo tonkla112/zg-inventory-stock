@@ -226,6 +226,84 @@ async function run() {
     ok(toastLog.some(t => t.tone === 'danger'), 'error toast shown on failure');
   }
 
+  console.log('updSO — updates header and replaces lines');
+  {
+    const toastLog = [];
+    const seed = {
+      items: [], customers: [],
+      purchase_orders: [],
+      sale_orders: [{ id: 'SO10004', date: '2026-07-01', cust_code: 'CUST0001', shipping: 0, discount: 0, has_sig: false }],
+      sale_order_lines: [{ id: 6, so_id: 'SO10004', item_code: 'ITM-1001', qty: 1, price: 100 }],
+    };
+    const supabase = makeSupabase(seed);
+    const store = loadStore({ supabase, toastLog });
+    await store.flush();
+
+    const result = await store.get().actions.updSO('SO10004', {
+      date: '2026-07-02',
+      custCode: 'CUST0002',
+      shipping: 15,
+      discount: 5,
+      sig: false,
+      signatureData: '',
+      lines: [{ code: 'ITM-1002', qty: 4, price: 50 }],
+    }, 'Correct recipient and item');
+    await store.flush();
+
+    ok(result === true, 'updSO resolves true');
+    ok(supabase.calls.some(c => c.table === 'sale_orders' && c.op === 'update' && c.val === 'SO10004'), 'sale order header updated');
+    ok(supabase.calls.some(c => c.table === 'sale_order_lines' && c.op === 'delete' && c.col === 'so_id' && c.val === 'SO10004'), 'old SO lines deleted by so_id');
+    ok(supabase.calls.some(c => c.table === 'sale_order_lines' && c.op === 'insert'), 'new SO lines inserted');
+  }
+
+  console.log('updSO — requires reason');
+  {
+    const toastLog = [];
+    const seed = {
+      items: [], customers: [],
+      purchase_orders: [],
+      sale_orders: [{ id: 'SO10005', date: '2026-07-01', cust_code: 'CUST0001', shipping: 0, discount: 0, has_sig: false }],
+      sale_order_lines: [{ id: 7, so_id: 'SO10005', item_code: 'ITM-1001', qty: 1, price: 100 }],
+    };
+    const supabase = makeSupabase(seed);
+    const store = loadStore({ supabase, toastLog });
+    await store.flush();
+
+    const result = await store.get().actions.updSO('SO10005', {
+      date: '2026-07-02',
+      custCode: 'CUST0001',
+      shipping: 0,
+      discount: 0,
+      sig: false,
+      signatureData: '',
+      lines: [{ code: 'ITM-1001', qty: 2, price: 100 }],
+    }, '');
+
+    ok(result === false, 'updSO rejects blank reason');
+    ok(!supabase.calls.some(c => c.op === 'update' || c.op === 'delete' || c.op === 'insert'), 'no database write attempted without reason');
+    ok(toastLog.some(t => t.tone === 'danger'), 'error toast shown for missing reason');
+  }
+
+  console.log('cancelSO — deletes SO header after reason');
+  {
+    const toastLog = [];
+    const seed = {
+      items: [], customers: [],
+      purchase_orders: [],
+      sale_orders: [{ id: 'SO10006', date: '2026-07-01', cust_code: 'CUST0001', shipping: 0, discount: 0, has_sig: false }],
+      sale_order_lines: [{ id: 8, so_id: 'SO10006', item_code: 'ITM-1001', qty: 1, price: 100 }],
+    };
+    const supabase = makeSupabase(seed);
+    const store = loadStore({ supabase, toastLog });
+    await store.flush();
+
+    const result = await store.get().actions.cancelSO('SO10006', 'Duplicate document');
+
+    ok(result === true, 'cancelSO resolves true');
+    ok(!store.get().state.sos.find(s => s.id === 'SO10006'), 'SO removed from state');
+    ok(supabase.calls.some(c => c.table === 'sale_orders' && c.op === 'delete' && c.val === 'SO10006'), 'sale order header deleted');
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   if (fail > 0) process.exit(1);
 }

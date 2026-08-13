@@ -1,6 +1,7 @@
 // Supabase-backed store — replaces localStorage version
 const _db = () => window.ZG_SUPABASE;
 const SIGNATURE_STORE_KEY = 'zg-signatures-v1';
+const SO_AUDIT_STORE_KEY = 'zg-so-audit-v1';
 
 function normalizeSignatureData(signatureData) {
   return typeof signatureData === 'string' && signatureData.startsWith('data:image/') ? signatureData : '';
@@ -30,6 +31,26 @@ function removeStoredSignature(id) {
     const store = readSignatureStore();
     delete store[id];
     window.localStorage?.setItem(SIGNATURE_STORE_KEY, JSON.stringify(store));
+  } catch (e) {}
+}
+function readSOAuditStore() {
+  try {
+    return JSON.parse(window.localStorage?.getItem(SO_AUDIT_STORE_KEY) || '{}') || {};
+  } catch (e) {
+    return {};
+  }
+}
+function getStoredSOAudit(id) {
+  return readSOAuditStore()[id] || [];
+}
+function appendStoredSOAudit(id, entry) {
+  try {
+    const store = readSOAuditStore();
+    store[id] = [
+      ...(store[id] || []),
+      { at: new Date().toISOString(), ...entry },
+    ].slice(-20);
+    window.localStorage?.setItem(SO_AUDIT_STORE_KEY, JSON.stringify(store));
   } catch (e) {}
 }
 function isMissingSignatureColumn(error) {
@@ -78,7 +99,19 @@ const mapSO = (r, lines = []) => ({
   shipping: +r.shipping, discount: +r.discount, sig: r.has_sig || !!normalizeSignatureData(r.signature_data),
   signatureData: normalizeSignatureData(r.signature_data) || getStoredSignature(r.id),
   lines: lines.map(l => ({ id: l.id, code: l.item_code, qty: l.qty, price: +l.price })),
+  audit: getStoredSOAudit(r.id),
 });
+
+function soHeaderRow(so, signatureData, hasSignature) {
+  return {
+    date: so.date, cust_code: so.custCode,
+    shipping: so.shipping || 0, discount: so.discount || 0,
+    has_sig: hasSignature, signature_data: signatureData,
+  };
+}
+function soLineRows(id, lines) {
+  return (lines || []).map(l => ({ so_id: id, item_code: l.code, qty: +l.qty || 0, price: l.price || 0 }));
+}
 
 // ---- Main store hook ----
 function useStore() {
@@ -155,7 +188,7 @@ function useStore() {
       const id = nextId('SO', stateRef.current.sos);
       const signatureData = normalizeSignatureData(so.signatureData);
       const hasSignature = !!so.sig || !!signatureData;
-      const nextSO = { ...so, id, sig: hasSignature, signatureData };
+      const nextSO = { ...so, id, sig: hasSignature, signatureData, audit: [] };
       setState(s => ({ ...s, sos: [nextSO, ...s.sos] }));
       const headerRow = {
         id, date: so.date, cust_code: so.custCode,
@@ -181,6 +214,91 @@ function useStore() {
         const { error: e2 } = await _db().from('sale_order_lines').insert(rows);
         if (e2) Toast.push('บันทึก line items บางส่วนไม่สำเร็จ', 'danger');
       }
+      return true;
+    },
+
+    async updSO(id, patch, reason) {
+      const cleanReason = String(reason || '').trim();
+      if (!cleanReason) {
+        Toast.push('กรุณาระบุเหตุผลการแก้ไข SO', 'danger');
+        return false;
+      }
+      const prevSos = stateRef.current.sos;
+      const oldSO = prevSos.find(s => s.id === id);
+      if (!oldSO) return false;
+
+      const signatureData = normalizeSignatureData(patch.signatureData) || normalizeSignatureData(oldSO.signatureData);
+      const hasSignature = !!patch.sig || !!signatureData;
+      const auditEntry = { action: 'edit', reason: cleanReason };
+      const nextSO = {
+        ...oldSO,
+        ...patch,
+        id,
+        sig: hasSignature,
+        signatureData,
+        audit: [...(oldSO.audit || []), { at: new Date().toISOString(), ...auditEntry }],
+      };
+
+      setState(s => ({ ...s, sos: s.sos.map(so => so.id === id ? nextSO : so) }));
+
+      const headerRow = soHeaderRow(nextSO, signatureData, hasSignature);
+      let { error: e1 } = await _db().from('sale_orders').update(headerRow).eq('id', id);
+      if (isMissingSignatureColumn(e1)) {
+        const { signature_data, ...fallbackRow } = headerRow;
+        ({ error: e1 } = await _db().from('sale_orders').update(fallbackRow).eq('id', id));
+      }
+      if (e1) {
+        setState(s => ({ ...s, sos: prevSos }));
+        Toast.push('แก้ไข SO ไม่สำเร็จ: ' + e1.message, 'danger');
+        return false;
+      }
+
+      const { error: e2 } = await _db().from('sale_order_lines').delete().eq('so_id', id);
+      if (e2) {
+        setState(s => ({ ...s, sos: prevSos }));
+        Toast.push('แก้ไขรายการสินค้าไม่สำเร็จ: ' + e2.message, 'danger');
+        await loadAll();
+        return false;
+      }
+
+      const newRows = soLineRows(id, nextSO.lines);
+      if (newRows.length > 0) {
+        const { error: e3 } = await _db().from('sale_order_lines').insert(newRows);
+        if (e3) {
+          await _db().from('sale_orders').update(soHeaderRow(oldSO, normalizeSignatureData(oldSO.signatureData), !!oldSO.sig)).eq('id', id);
+          await _db().from('sale_order_lines').insert(soLineRows(id, oldSO.lines));
+          setState(s => ({ ...s, sos: prevSos }));
+          Toast.push('บันทึกรายการสินค้าใหม่ไม่สำเร็จ: ' + e3.message, 'danger');
+          await loadAll();
+          return false;
+        }
+      }
+
+      saveStoredSignature(id, signatureData);
+      appendStoredSOAudit(id, auditEntry);
+      await loadAll();
+      return true;
+    },
+
+    async cancelSO(id, reason) {
+      const cleanReason = String(reason || '').trim();
+      if (!cleanReason) {
+        Toast.push('กรุณาระบุเหตุผลการยกเลิก SO', 'danger');
+        return false;
+      }
+      const prevSos = stateRef.current.sos;
+      const so = prevSos.find(s => s.id === id);
+      if (!so) return false;
+
+      setState(s => ({ ...s, sos: s.sos.filter(x => x.id !== id) }));
+      const { error } = await _db().from('sale_orders').delete().eq('id', id);
+      if (error) {
+        setState(s => ({ ...s, sos: prevSos }));
+        Toast.push('ยกเลิก SO ไม่สำเร็จ: ' + error.message, 'danger');
+        return false;
+      }
+      removeStoredSignature(id);
+      appendStoredSOAudit(id, { action: 'cancel', reason: cleanReason });
       return true;
     },
 
@@ -273,4 +391,4 @@ function useStore() {
   return { state, stockMap, ready, actions };
 }
 
-Object.assign(window, { useStore, soTotals, soTotalsFromMap, computeStock, nextId, getStoredSignature });
+Object.assign(window, { useStore, soTotals, soTotalsFromMap, computeStock, nextId, getStoredSignature, getStoredSOAudit });
