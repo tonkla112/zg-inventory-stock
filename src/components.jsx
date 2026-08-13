@@ -278,10 +278,27 @@ function printWindow(title, bodyHtml) {
       .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; font-size:12.5px; }
       .info-item label { color:#6B7280; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; display:block; margin-bottom:2px; }
       .zg-footer { margin-top:22px; text-align:right; font-size:11px; color:#9CA3AF; border-top:1px solid #E5E7EB; padding-top:8px; }
-      .print-btn { margin-top:16px; padding:9px 24px; background:#1D9E75; color:white; border:none; border-radius:7px; cursor:pointer; font-size:14px; font-weight:500; }
-      @media print { .print-btn { display:none; } }
+      .print-toolbar { position:sticky; top:0; z-index:5; display:flex; justify-content:flex-end; gap:8px; margin:-16px -16px 18px; padding:10px 16px; background:rgba(248,250,251,.96); border-bottom:1px solid #E5E7EB; backdrop-filter:blur(10px); }
+      .print-action { min-height:38px; padding:9px 16px; border:1px solid #D1D5DB; border-radius:8px; background:white; color:#374151; cursor:pointer; font-size:13px; font-weight:600; }
+      .print-action:hover { background:#F8FAFB; }
+      .print-action.primary { border-color:#1D9E75; background:#1D9E75; color:white; }
+      .print-action.primary:hover { background:#168862; }
+      @media print { .print-toolbar { display:none; } body { padding:32px; } }
     </style>
+    <script>
+      function goBackToApp() {
+        if (window.opener && !window.opener.closed) {
+          window.close();
+          return;
+        }
+        if (history.length > 1) history.back();
+      }
+    </script>
   </head><body>
+    <div class="print-toolbar">
+      <button class="print-action" onclick="goBackToApp()">← กลับ / Back</button>
+      <button class="print-action primary" onclick="window.print()">พิมพ์ / Print</button>
+    </div>
     <div class="zg-header">
       <div>
         <div class="zg-logo">ZG Inventory Stock</div>
@@ -294,7 +311,6 @@ function printWindow(title, bodyHtml) {
     </div>
     ${bodyHtml}
     <div class="zg-footer">ZG Industries (Thailand) Limited · Rayong Plant · ระบบจัดการคลังสินค้า v2.0</div>
-    <button class="print-btn" onclick="window.print()">🖨&nbsp; พิมพ์ / Print &nbsp;·&nbsp; กด Ctrl+P</button>
   </body></html>`);
   w.document.close();
 }
