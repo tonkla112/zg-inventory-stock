@@ -369,6 +369,16 @@ function matchesSOHistorySearch(so, query, itemMap, custMap) {
   ].filter(Boolean).join(' ').toLowerCase().includes(q);
 }
 
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[c]));
+}
+
 function StockOutPage({ store, lang }) {
   const t = (th, en) => lang === 'en' ? en : th;
   const { state, actions } = store;
@@ -452,6 +462,117 @@ function StockOutPage({ store, lang }) {
 
   // SO history: most recent first, filtered by quick date range and search
   const recentSOs = useMemo(() => filteredHistorySOs.slice(0, 50), [filteredHistorySOs]);
+
+  const exportHistoryRows = useMemo(() => filteredHistorySOs.map(so => {
+    const c = custMap.get(so.custCode) || {};
+    const subtotal = so.lines.reduce((sum, line) => {
+      const item = itemMap.get(line.code);
+      return sum + (item ? item.sell * line.qty : 0);
+    }, 0);
+    return {
+      so,
+      recipient: c.name || so.custCode,
+      department: c.dept || '',
+      position: c.pos || '',
+      items: so.lines.length,
+      subtotal,
+      shipping: so.shipping || 0,
+      discount: so.discount || 0,
+      net: subtotal + (so.shipping || 0) - (so.discount || 0),
+      signature: so.sig ? t('มีลายเซ็น', 'Signed') : t('ยังไม่ได้เซ็น', 'Not signed'),
+      itemSummary: so.lines.map(line => {
+        const item = itemMap.get(line.code) || {};
+        return `${line.code} ${item.name || ''} x${line.qty}`.trim();
+      }).join('; '),
+    };
+  }), [filteredHistorySOs, itemMap, custMap, lang]);
+
+  const exportHistoryTotal = useMemo(
+    () => exportHistoryRows.reduce((sum, row) => sum + row.net, 0),
+    [exportHistoryRows]
+  );
+
+  function exportWithdrawalHistoryCSV() {
+    if (exportHistoryRows.length === 0) {
+      Toast.push(t('ไม่มีข้อมูลสำหรับส่งออก', 'No records to export'), 'danger');
+      return;
+    }
+    exportCSV(
+      `ZG-Withdrawal-History-${todayISO()}.csv`,
+      [
+        t('เลขที่ SO', 'SO Number'),
+        t('วันที่', 'Date'),
+        t('รหัสผู้รับ', 'Recipient Code'),
+        t('ผู้รับสินค้า', 'Recipient'),
+        t('แผนก', 'Department'),
+        t('ตำแหน่ง', 'Position'),
+        t('จำนวนรายการ', 'Items'),
+        t('รายการสินค้า', 'Line Items'),
+        t('ราคาก่อนรวม', 'Subtotal'),
+        t('ค่าขนส่ง', 'Shipping'),
+        t('ส่วนลด', 'Discount'),
+        t('ราคาสุทธิ', 'Net Price'),
+        t('ลายเซ็น', 'Signature'),
+      ],
+      exportHistoryRows.map(row => [
+        row.so.id,
+        row.so.date,
+        row.so.custCode,
+        row.recipient,
+        row.department,
+        row.position,
+        row.items,
+        row.itemSummary,
+        row.subtotal,
+        row.shipping,
+        row.discount,
+        row.net,
+        row.signature,
+      ])
+    );
+    Toast.push(t('ส่งออกประวัติการเบิกเป็น CSV แล้ว', 'Withdrawal History CSV exported'));
+  }
+
+  function exportWithdrawalHistoryPDF() {
+    if (exportHistoryRows.length === 0) {
+      Toast.push(t('ไม่มีข้อมูลสำหรับส่งออก', 'No records to export'), 'danger');
+      return;
+    }
+    const rangeLabel = historyFilters.find(filter => filter.value === historyRange)?.label || t('ทั้งหมด', 'All');
+    const searchLabel = hasHistorySearch ? historySearch.trim() : t('ไม่มีคำค้นหา', 'No search');
+    const tableRows = exportHistoryRows.map(row => `
+      <tr>
+        <td class="mono brand">${escapeHTML(row.so.id)}</td>
+        <td class="mono">${escapeHTML(row.so.date)}</td>
+        <td>${escapeHTML(row.recipient)}<br><span style="color:#6B7280;font-size:11px">${escapeHTML(row.department || row.so.custCode)}</span></td>
+        <td class="right mono">${row.items}</td>
+        <td class="right mono">${fmtTHB(row.net)}</td>
+        <td><span class="badge ${row.so.sig ? 'badge-in' : 'badge-out'}">${escapeHTML(row.signature)}</span></td>
+      </tr>`).join('');
+    printWindow(t('รายงานประวัติการเบิกสินค้า', 'Withdrawal History Report'), `
+      <div class="info-grid">
+        <div class="info-item"><label>${t('ช่วงวันที่', 'Date Range')}</label><strong>${escapeHTML(rangeLabel)}</strong></div>
+        <div class="info-item"><label>${t('คำค้นหา', 'Search')}</label><strong>${escapeHTML(searchLabel)}</strong></div>
+        <div class="info-item"><label>${t('จำนวนเอกสาร', 'Documents')}</label><strong class="mono">${fmtInt(exportHistoryRows.length)}</strong></div>
+        <div class="info-item"><label>${t('มูลค่าสุทธิรวม', 'Total Net Value')}</label><strong class="mono brand">${fmtTHB(exportHistoryTotal)}</strong></div>
+      </div>
+      <table>
+        <thead><tr>
+          <th>${t('เลขที่ SO', 'SO Number')}</th>
+          <th>${t('วันที่', 'Date')}</th>
+          <th>${t('ผู้รับสินค้า', 'Recipient')}</th>
+          <th class="right">${t('จำนวนรายการ', 'Items')}</th>
+          <th class="right">${t('ราคาสุทธิ', 'Net Price')}</th>
+          <th>${t('ลายเซ็น', 'Signature')}</th>
+        </tr></thead>
+        <tbody>${tableRows}</tbody>
+        <tfoot><tr>
+          <td colspan="4" class="right">${t('รวมทั้งหมด', 'Grand Total')}</td>
+          <td class="right mono brand">${fmtTHB(exportHistoryTotal)}</td>
+          <td></td>
+        </tr></tfoot>
+      </table>`);
+  }
 
   return (
     <div className="space-y-5">
@@ -600,6 +721,24 @@ function StockOutPage({ store, lang }) {
               <span className="kbd">{fmtInt(filteredHistorySOs.length)}</span>
               <span>{t('รายการ', 'records')}</span>
             </Badge>
+            <div className="inline-flex items-center gap-1">
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Icon.CSV size={13}/>}
+                disabled={exportHistoryRows.length === 0}
+                onClick={exportWithdrawalHistoryCSV}>
+                CSV
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Icon.PDF size={13}/>}
+                disabled={exportHistoryRows.length === 0}
+                onClick={exportWithdrawalHistoryPDF}>
+                PDF
+              </Button>
+            </div>
             <Input
               className="w-full lg:w-[250px]"
               prefix={<Icon.Search size={14}/>}
