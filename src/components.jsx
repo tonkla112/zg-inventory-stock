@@ -129,7 +129,7 @@ function Tabs({ items, value, onChange }) {
 }
 
 // ---- Modal
-function Modal({ open, onClose, title, children, width='max-w-lg', footer, headerAction }) {
+function Modal({ open, onClose, title, children, width='max-w-lg', footer, headerAction, bodyClass='p-5' }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -142,7 +142,7 @@ function Modal({ open, onClose, title, children, width='max-w-lg', footer, heade
           </div>
           <button onClick={onClose} className="p-1.5 -mr-1.5 rounded hover:bg-page text-ink-mute"><Icon.X size={16}/></button>
         </header>
-        <div className="p-5">{children}</div>
+        <div className={bodyClass}>{children}</div>
         {footer && <footer className="px-5 py-3 border-t border-line flex items-center justify-end gap-2 bg-page rounded-b-card">{footer}</footer>}
       </div>
     </div>

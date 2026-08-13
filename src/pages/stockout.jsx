@@ -355,7 +355,8 @@ function SOEditModal({ so, items, customers, onClose, onSave, lang }) {
 
   return (
     <React.Fragment>
-    <Modal open onClose={requestClose} title={`${t('แก้ไขใบเบิกสินค้า', 'Edit Withdrawal')} · ${so.id}`} width="max-w-5xl"
+    <Modal open onClose={requestClose} title={`${t('แก้ไขใบเบิกสินค้า', 'Edit Withdrawal')} · ${so.id}`} width="max-w-6xl"
+      bodyClass="p-5 max-h-[calc(100vh-9rem)] overflow-y-auto"
       headerAction={
         <Button variant="ghost" size="sm" icon={<Icon.ChevronLeft size={14}/>} onClick={requestClose}>
           {t('กลับ', 'Back')}
@@ -391,49 +392,64 @@ function SOEditModal({ so, items, customers, onClose, onSave, lang }) {
           </Field>
         </div>
 
-        <div className="rounded-lg border border-line overflow-hidden">
-          <div className="px-4 py-3 border-b border-line flex items-center justify-between bg-page">
+        <div className="rounded-lg border border-line overflow-hidden bg-page">
+          <div className="px-4 py-3 border-b border-line flex items-center justify-between gap-3">
             <div>
               <div className="font-semibold text-[14px]">{t('รายการสินค้า', 'Line Items')}</div>
-              <div className="text-[12px] text-ink-mute">{t('แก้ไขรหัสสินค้าและจำนวนที่เบิก', 'Edit item codes and withdrawal quantities')}</div>
+              <div className="text-[12px] text-ink-mute">{t('ช่องใหญ่ขึ้นสำหรับใช้งานบน iPad', 'Larger fields for iPad editing')}</div>
             </div>
-            <Button variant="soft" size="sm" icon={<Icon.Plus size={14}/>} onClick={addLine}>{t('เพิ่มสินค้า', 'Add Item')}</Button>
+            <Button variant="soft" icon={<Icon.Plus size={15}/>} onClick={addLine}>{t('เพิ่มสินค้า', 'Add Item')}</Button>
           </div>
-          <div className="overflow-x-auto scrollbar-thin">
-            <table className="w-full text-[13px]">
-              <thead className="bg-page border-b border-line text-ink-mute">
-                <tr>
-                  <th className="text-left font-medium px-3 py-2 label-cap w-10">#</th>
-                  <th className="text-left font-medium px-3 py-2 label-cap w-[180px]">{t('รหัสสินค้า', 'Item Code')}</th>
-                  <th className="text-left font-medium px-3 py-2 label-cap">{t('ชื่อสินค้า', 'Item Name')}</th>
-                  <th className="text-right font-medium px-3 py-2 label-cap w-[120px]">{t('จำนวน', 'Qty')}</th>
-                  <th className="text-right font-medium px-3 py-2 label-cap w-[140px]">{t('จำนวนเงิน', 'Amount')}</th>
-                  <th className="px-3 py-2 w-10"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {form.lines.map((line, idx) => {
-                  const item = itemMap.get(line.code);
-                  const amount = (item?.sell || 0) * (line.qty || 0);
-                  return (
-                    <tr key={line.uid}>
-                      <td className="px-3 py-2 text-ink-faint kbd text-[12px]">{String(idx + 1).padStart(2, '0')}</td>
-                      <td className="px-3 py-2">
-                        <Input value={line.code} onChange={e => setLine(line.uid, { code: e.target.value })} list="edit-so-item-codes" prefix={<Icon.QR size={13}/>}/>
-                      </td>
-                      <td className="px-3 py-2 text-ink-soft">{item ? `${item.name} · ${item.unit}` : <span className="text-ink-faint">—</span>}</td>
-                      <td className="px-3 py-2">
-                        <Input type="number" min="1" value={line.qty} className="text-right" onChange={e => setLine(line.uid, { qty: +e.target.value })}/>
-                      </td>
-                      <td className="px-3 py-2 text-right kbd font-semibold tabular-nums">{amount ? fmtTHB(amount) : '—'}</td>
-                      <td className="px-3 py-2 text-right">
-                        <IconButton tone="danger" icon={<Icon.Trash size={15}/>} onClick={() => removeLine(line.uid)}/>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="p-3 space-y-3">
+            {form.lines.map((line, idx) => {
+              const item = itemMap.get(line.code);
+              const amount = (item?.sell || 0) * (line.qty || 0);
+              return (
+                <div key={line.uid} className="rounded-lg border border-line bg-white p-3 shadow-sm">
+                  <div className="flex items-center justify-between gap-3 border-b border-line pb-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="h-7 min-w-7 px-2 rounded-md bg-brand-50 text-brand-700 kbd text-[12px] font-semibold flex items-center justify-center">
+                        {String(idx + 1).padStart(2, '0')}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="label-cap text-ink-faint">{t('รายการ', 'Line')}</div>
+                        <div className="text-[13px] font-medium truncate">{item?.name || t('เลือกสินค้า', 'Select item')}</div>
+                      </div>
+                    </div>
+                    <Button variant="danger" size="sm" icon={<Icon.Trash size={14}/>} onClick={() => removeLine(line.uid)}>
+                      {t('ลบ', 'Delete')}
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_150px_160px] gap-3 pt-3">
+                    <Field label={t('รหัสสินค้า / Item Code', 'Item Code / รหัสสินค้า')}>
+                      <Input
+                        value={line.code}
+                        onChange={e => setLine(line.uid, { code: e.target.value })}
+                        list="edit-so-item-codes"
+                        prefix={<Icon.QR size={14}/>}
+                        className="min-h-[46px]"
+                      />
+                    </Field>
+                    <Field label={t('จำนวน / Qty', 'Qty / จำนวน')}>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={line.qty}
+                        className="min-h-[46px] text-right"
+                        onChange={e => setLine(line.uid, { qty: +e.target.value })}
+                      />
+                    </Field>
+                    <div className="rounded-lg border border-line bg-page px-3 py-2 flex md:flex-col items-center md:items-end justify-between gap-2">
+                      <span className="label-cap text-ink-faint">{t('จำนวนเงิน', 'Amount')}</span>
+                      <span className="kbd text-[15px] font-semibold tabular-nums text-brand-700">{amount ? fmtTHB(amount) : '—'}</span>
+                    </div>
+                  </div>
+                  <div className="mt-2 text-[12.5px] text-ink-mute">
+                    {item ? `${item.name} · ${item.unit} · ${fmtTHB(item.sell || 0)}` : t('ป้อนหรือเลือกรหัสสินค้าเพื่อแสดงรายละเอียด', 'Enter or select an item code to show details')}
+                  </div>
+                </div>
+              );
+            })}
             <datalist id="edit-so-item-codes">
               {items.map(item => <option key={item.code} value={item.code}>{item.name}</option>)}
             </datalist>
