@@ -1,8 +1,12 @@
 {
   "name": "zg-inventory-stock",
   "private": true,
-  "description": "Static browser app (no build step). This package.json only wires up the Node-based test suite.",
+  "description": "Static browser app with a prebuilt React bundle for GitHub Pages.",
   "scripts": {
+    "build": "node scripts/build-app.mjs",
     "test": "node tests/data.actions.test.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }
