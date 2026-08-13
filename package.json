@@ -3,10 +3,13 @@
   "private": true,
   "description": "Static browser app with a prebuilt React bundle for GitHub Pages.",
   "scripts": {
-    "build": "node scripts/build-app.mjs",
+    "build": "npm run build:css && npm run build:js",
+    "build:css": "tailwindcss -c tailwind.config.js -i src/styles.css -o dist/styles.css --minify",
+    "build:js": "node scripts/build-app.mjs",
     "test": "node tests/data.actions.test.js"
   },
   "devDependencies": {
-    "esbuild": "^0.28.2"
+    "esbuild": "^0.28.2",
+    "tailwindcss": "^3.4.17"
   }
 }
