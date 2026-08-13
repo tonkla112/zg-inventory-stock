@@ -244,8 +244,14 @@ function useStore() {
       const oldSO = prevSos.find(s => s.id === id);
       if (!oldSO) return false;
 
-      const signatureData = normalizeSignatureData(patch.signatureData) || normalizeSignatureData(oldSO.signatureData);
-      const hasSignature = !!patch.sig || !!signatureData;
+      const patchIncludesSignature = Object.prototype.hasOwnProperty.call(patch, 'signatureData')
+        || Object.prototype.hasOwnProperty.call(patch, 'sig');
+      const signatureData = patchIncludesSignature
+        ? normalizeSignatureData(patch.signatureData)
+        : normalizeSignatureData(oldSO.signatureData);
+      const hasSignature = patchIncludesSignature
+        ? (!!patch.sig || !!signatureData)
+        : (!!oldSO.sig || !!signatureData);
       const auditEntry = { action: 'edit', reason: cleanReason };
       const nextSO = {
         ...oldSO,
@@ -291,7 +297,8 @@ function useStore() {
         }
       }
 
-      saveStoredSignature(id, signatureData);
+      if (signatureData) saveStoredSignature(id, signatureData);
+      else removeStoredSignature(id);
       appendStoredSOAudit(id, auditEntry);
       await loadAll();
       return true;

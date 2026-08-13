@@ -284,6 +284,42 @@ async function run() {
     ok(toastLog.some(t => t.tone === 'danger'), 'error toast shown for missing reason');
   }
 
+  console.log('updSO — can clear old signature after signed edit');
+  {
+    const toastLog = [];
+    const seed = {
+      items: [], customers: [],
+      purchase_orders: [],
+      sale_orders: [{
+        id: 'SO10007',
+        date: '2026-07-01',
+        cust_code: 'CUST0001',
+        shipping: 0,
+        discount: 0,
+        has_sig: true,
+        signature_data: 'data:image/png;base64,old',
+      }],
+      sale_order_lines: [{ id: 9, so_id: 'SO10007', item_code: 'ITM-1001', qty: 1, price: 100 }],
+    };
+    const supabase = makeSupabase(seed);
+    const store = loadStore({ supabase, toastLog });
+    await store.flush();
+
+    const result = await store.get().actions.updSO('SO10007', {
+      date: '2026-07-02',
+      custCode: 'CUST0001',
+      shipping: 0,
+      discount: 0,
+      sig: false,
+      signatureData: '',
+      lines: [{ code: 'ITM-1001', qty: 2, price: 100 }],
+    }, 'Correct quantity and require new signature');
+
+    ok(result === true, 'updSO resolves true');
+    ok(supabase.calls.some(c => c.table === 'sale_orders' && c.op === 'update' && c.val === 'SO10007' && c.patch.has_sig === false), 'signature flag cleared');
+    ok(supabase.calls.some(c => c.table === 'sale_orders' && c.op === 'update' && c.val === 'SO10007' && c.patch.signature_data === ''), 'signature image cleared');
+  }
+
   console.log('cancelSO — keeps SO history with canceled status');
   {
     const toastLog = [];

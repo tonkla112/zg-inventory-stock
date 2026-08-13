@@ -306,6 +306,7 @@ function SOEditModal({ so, items, customers, onClose, onSave, lang }) {
   }));
   const [busy, setBusy] = useState(false);
   const [confirmBack, setConfirmBack] = useState(false);
+  const [clearSignatureAccepted, setClearSignatureAccepted] = useState(false);
   const itemMap = useMemo(() => new Map(items.map(item => [item.code, item])), [items]);
   const custMap = useMemo(() => new Map(customers.map(c => [c.code, c])), [customers]);
   const cust = custMap.get(form.custCode);
@@ -329,6 +330,7 @@ function SOEditModal({ so, items, customers, onClose, onSave, lang }) {
     lines: form.lines.map(line => ({ code: line.code, qty: +line.qty || 0 })),
   }), [form]);
   const hasUnsavedChanges = originalDraft !== currentDraft || form.reason.trim().length > 0;
+  const signedDocumentChanged = !!so.sig && originalDraft !== currentDraft;
 
   function requestClose() {
     if (busy) return;
@@ -364,6 +366,10 @@ function SOEditModal({ so, items, customers, onClose, onSave, lang }) {
     if (busy) return;
     const cleanReason = form.reason.trim();
     if (!cleanReason) { Toast.push(t('กรุณาระบุเหตุผลการแก้ไข', 'Please enter an edit reason'), 'danger'); return; }
+    if (signedDocumentChanged && !clearSignatureAccepted) {
+      Toast.push(t('กรุณายืนยันการล้างลายเซ็นเดิมก่อนบันทึก', 'Please confirm clearing the old signature before saving'), 'danger');
+      return;
+    }
     const validLines = form.lines.filter(line => line.code && itemMap.has(line.code) && line.qty > 0);
     if (validLines.length === 0) { Toast.push(t('กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ', 'Please add at least 1 item'), 'danger'); return; }
     setBusy(true);
@@ -372,10 +378,12 @@ function SOEditModal({ so, items, customers, onClose, onSave, lang }) {
       custCode: form.custCode,
       shipping: +form.shipping || 0,
       discount: +form.discount || 0,
-      sig: so.sig,
-      signatureData: so.signatureData,
+      sig: signedDocumentChanged ? false : so.sig,
+      signatureData: signedDocumentChanged ? '' : so.signatureData,
       lines: validLines.map(line => ({ id: line.id, code: line.code, qty: +line.qty, price: line.price || 0 })),
-    }, cleanReason);
+    }, signedDocumentChanged
+      ? `${cleanReason} · ${t('ล้างลายเซ็นเดิมเพื่อให้เซ็นใหม่', 'Old signature cleared for re-signing')}`
+      : cleanReason);
     setBusy(false);
     if (ok) onClose();
   }
@@ -401,6 +409,36 @@ function SOEditModal({ so, items, customers, onClose, onSave, lang }) {
         <div className="rounded-lg border border-amber2-bg bg-amber2-bg/40 p-3 text-[12.5px] text-amber2-fg leading-relaxed">
           {t('การแก้ไขใบเบิกที่บันทึกแล้วต้องระบุเหตุผล เพื่อให้ตรวจสอบย้อนหลังได้', 'Editing a saved withdrawal requires a reason for later review.')}
         </div>
+        {so.sig && (
+          <div className={`rounded-lg border p-3 text-[12.5px] leading-relaxed ${signedDocumentChanged ? 'border-danger-bg bg-danger-bg text-danger-fg' : 'border-good-bg bg-good-bg text-good-fg'}`}>
+            <div className="flex items-start gap-2">
+              <Icon.Warn size={15} className="mt-0.5 shrink-0"/>
+              <div className="min-w-0 flex-1">
+                <div className="font-semibold">
+                  {signedDocumentChanged
+                    ? t('เอกสารนี้มีลายเซ็นแล้ว และมีการแก้ไขข้อมูล', 'This signed document has been changed')
+                    : t('เอกสารนี้มีลายเซ็นแล้ว', 'This document is signed')}
+                </div>
+                <div className="mt-1">
+                  {signedDocumentChanged
+                    ? t('เมื่อบันทึก ระบบจะล้างลายเซ็นเดิม เพื่อให้ผู้รับสินค้าเซ็นใหม่กับข้อมูลล่าสุด', 'Saving will clear the old signature so the recipient can sign again for the latest information.')
+                    : t('หากแก้ไขวันที่ ผู้รับ รายการสินค้า ค่าขนส่ง หรือส่วนลด ระบบจะต้องให้เซ็นใหม่', 'If date, recipient, item lines, shipping, or discount changes, the document must be signed again.')}
+                </div>
+                {signedDocumentChanged && (
+                  <label className="mt-2 flex items-center gap-2 text-[12.5px] font-medium">
+                    <input
+                      type="checkbox"
+                      checked={clearSignatureAccepted}
+                      onChange={e => setClearSignatureAccepted(e.target.checked)}
+                      className="h-4 w-4 rounded border-line2 accent-brand-500"
+                    />
+                    <span>{t('ยืนยันให้ล้างลายเซ็นเดิม และให้เซ็นใหม่หลังบันทึก', 'Clear old signature and require re-signing after save')}</span>
+                  </label>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Field label={t('วันที่ / Date', 'Date / วันที่')} required>
