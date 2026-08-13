@@ -11,13 +11,14 @@ function buildSOPrintHTML(so, items, customers, lang) {
   }, 0);
   const net = subtotal + (so.shipping || 0) - (so.discount || 0);
   const isCanceled = !!so.canceled;
+  const needsResign = signatureNeedsResign(so);
   const savedSignature = typeof getStoredSignature === 'function' ? getStoredSignature(so.id) : '';
   const signatureData = typeof so.signatureData === 'string' && so.signatureData.startsWith('data:image/')
     ? so.signatureData
     : savedSignature;
   const signatureContent = signatureData
     ? `<img src="${signatureData}" alt="Recipient signature" style="max-width:100%;max-height:46px;object-fit:contain;display:block;" />`
-    : (so.sig ? t('มีลายเซ็น', 'Signed') : t('ยังไม่ได้เซ็น', 'Not signed'));
+    : (so.sig ? t('มีลายเซ็น', 'Signed') : needsResign ? t('ต้องเซ็นใหม่', 'Re-sign required') : t('ยังไม่ได้เซ็น', 'Not signed'));
 
   const lineRows = so.lines.map((l, idx) => {
     const it = itemMap.get(l.code) || {};
@@ -124,7 +125,7 @@ function buildSOPrintHTML(so, items, customers, lang) {
         </div>
         <div style="flex:1;text-align:center;">
           <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">${t('ลายเซ็นผู้รับสินค้า / Recipient signature', 'Recipient signature / ลายเซ็นผู้รับสินค้า')}</div>
-          <div style="border:1px dashed #9ca3af;height:52px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;color:${so.sig ? '#16a34a' : '#ef4444'};">
+          <div style="border:1px dashed #9ca3af;height:52px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;color:${so.sig ? '#16a34a' : needsResign ? '#b45309' : '#ef4444'};">
             ${signatureContent}
           </div>
           <div style="border-top:1px solid #9ca3af;margin-top:8px;padding-top:6px;font-size:12px;color:#6b7280;">${t('ผู้รับสินค้า / Recipient', 'Recipient / ผู้รับสินค้า')}</div>
@@ -136,7 +137,7 @@ function buildSOPrintHTML(so, items, customers, lang) {
     </div>`;
 }
 
-function SODetailModal({ so, items, customers, onClose, onEdit, onCancel, lang }) {
+function SODetailModal({ so, items, customers, onClose, onEdit, onCancel, onResign, lang }) {
   const t = (th, en) => lang === 'en' ? en : th;
   const itemMap = new Map(items.map(i => [i.code, i]));
   const custMap = new Map(customers.map(c => [c.code, c]));
@@ -147,8 +148,14 @@ function SODetailModal({ so, items, customers, onClose, onEdit, onCancel, lang }
   }, 0);
   const net = subtotal + (so.shipping || 0) - (so.discount || 0);
   const isCanceled = !!so.canceled;
+  const needsResign = signatureNeedsResign(so);
 
   function handlePrint() {
+    if (needsResign) {
+      Toast.push(t('กรุณาเซ็นใหม่ก่อนพิมพ์เอกสารสุดท้าย', 'Please re-sign before printing the final document'), 'danger');
+      onResign?.(so);
+      return;
+    }
     const html = buildSOPrintHTML(so, items, customers, lang);
     printWindow(`${t('ใบเบิกสินค้า', 'Sale Order')} ${so.id}`, html);
   }
@@ -167,6 +174,11 @@ function SODetailModal({ so, items, customers, onClose, onEdit, onCancel, lang }
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {needsResign && (
+              <Button variant="soft" size="sm" icon={<Icon.Edit size={14}/>} onClick={() => onResign?.(so)}>
+                {t('เซ็นใหม่', 'Re-sign')}
+              </Button>
+            )}
             <Button variant="secondary" size="sm" icon={<Icon.Edit size={14}/>} disabled={isCanceled} onClick={() => onEdit?.(so)}>{t('แก้ไข', 'Edit')}</Button>
             <Button variant="danger" size="sm" icon={<Icon.X size={14}/>} disabled={isCanceled} onClick={() => onCancel?.(so)}>{t('ยกเลิก SO', 'Cancel SO')}</Button>
             <Button variant="info" size="sm" icon={<Icon.Print size={14}/>} onClick={handlePrint}>{t('พิมพ์', 'Print')}</Button>
@@ -206,10 +218,15 @@ function SODetailModal({ so, items, customers, onClose, onEdit, onCancel, lang }
             </div>
             <div className="bg-page rounded-lg p-3 space-y-1">
               <div className="label-cap text-ink-faint">{t('ลายเซ็น', 'Signature')}</div>
-              <div className={`inline-flex items-center gap-1.5 text-[12px] font-medium ${so.sig ? 'text-good-fg' : 'text-danger-fg'}`}>
-                <span className={`h-2 w-2 rounded-full ${so.sig ? 'bg-good-fg' : 'bg-danger-fg'}`}/>
-                {so.sig ? t('มีลายเซ็น', 'Signed') : t('ยังไม่ได้เซ็น', 'Not signed')}
+              <div className={`inline-flex items-center gap-1.5 text-[12px] font-medium ${so.sig ? 'text-good-fg' : needsResign ? 'text-amber2-fg' : 'text-danger-fg'}`}>
+                <span className={`h-2 w-2 rounded-full ${so.sig ? 'bg-good-fg' : needsResign ? 'bg-amber2-fg' : 'bg-danger-fg'}`}/>
+                {signatureStatusLabel(so, lang)}
               </div>
+              {needsResign && (
+                <div className="mt-1 text-[11.5px] text-amber2-fg">
+                  {t('เอกสารถูกแก้ไขหลังจากเซ็นแล้ว', 'Document changed after signing')}
+                </div>
+              )}
             </div>
           </div>
 
@@ -564,6 +581,105 @@ function SOEditModal({ so, items, customers, onClose, onSave, lang }) {
   );
 }
 
+function SOResignModal({ so, items, customers, onClose, onSave, lang }) {
+  const t = (th, en) => lang === 'en' ? en : th;
+  const [signatureData, setSignatureData] = useState(null);
+  const [reason, setReason] = useState(t('ผู้รับสินค้าเซ็นใหม่หลังแก้ไขเอกสาร', 'Recipient re-signed after document edit'));
+  const [busy, setBusy] = useState(false);
+  const cust = customers.find(c => c.code === so.custCode) || {};
+  const itemMap = useMemo(() => new Map(items.map(item => [item.code, item])), [items]);
+  const subtotal = so.lines.reduce((sum, line) => {
+    const item = itemMap.get(line.code);
+    return sum + (item ? item.sell * line.qty : 0);
+  }, 0);
+  const net = subtotal + (so.shipping || 0) - (so.discount || 0);
+
+  async function submit() {
+    if (busy) return;
+    const cleanReason = reason.trim();
+    if (!signatureData) {
+      Toast.push(t('กรุณาเซ็นชื่อก่อนบันทึก', 'Please sign before saving'), 'danger');
+      return;
+    }
+    if (!cleanReason) {
+      Toast.push(t('กรุณาระบุหมายเหตุการเซ็นใหม่', 'Please enter a re-sign note'), 'danger');
+      return;
+    }
+    setBusy(true);
+    const ok = await onSave(so.id, {
+      date: so.date,
+      custCode: so.custCode,
+      shipping: +so.shipping || 0,
+      discount: +so.discount || 0,
+      sig: true,
+      signatureData,
+      lines: so.lines.map(line => ({ id: line.id, code: line.code, qty: +line.qty, price: line.price || 0 })),
+    }, cleanReason);
+    setBusy(false);
+    if (ok) onClose();
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`${t('เซ็นใหม่', 'Re-sign')} · ${so.id}`} width="max-w-3xl"
+      bodyClass="p-5 max-h-[calc(100vh-9rem)] overflow-y-auto"
+      headerAction={
+        <Button variant="ghost" size="sm" icon={<Icon.ChevronLeft size={14}/>} onClick={onClose}>
+          {t('กลับ', 'Back')}
+        </Button>
+      }
+      footer={
+        <React.Fragment>
+          <Button variant="ghost" icon={<Icon.ChevronLeft size={14}/>} onClick={onClose}>{t('กลับ', 'Back')}</Button>
+          <Button variant="primary" icon={<Icon.Save size={15}/>} disabled={busy} onClick={submit}>
+            {busy ? t('กำลังบันทึก...', 'Saving...') : t('บันทึกลายเซ็นใหม่', 'Save Re-signature')}
+          </Button>
+        </React.Fragment>
+      }>
+      <div className="space-y-4">
+        <div className="rounded-lg border border-amber2-bg bg-amber2-bg/40 p-3 text-[12.5px] text-amber2-fg leading-relaxed">
+          {t('เอกสารนี้ถูกแก้ไขหลังจากเซ็นแล้ว กรุณาให้ผู้รับสินค้าเซ็นใหม่ก่อนพิมพ์เป็นเอกสารสุดท้าย', 'This document was changed after signing. Please capture a new recipient signature before printing the final document.')}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[13px]">
+          <div className="rounded-lg border border-line bg-page p-3">
+            <div className="label-cap text-ink-faint">{t('เลขที่ SO', 'SO Number')}</div>
+            <div className="mt-1 kbd font-semibold text-brand-700">{so.id}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-page p-3">
+            <div className="label-cap text-ink-faint">{t('ผู้รับสินค้า', 'Recipient')}</div>
+            <div className="mt-1 font-medium">{cust.name || so.custCode}</div>
+            <div className="text-[11.5px] text-ink-faint">{cust.dept || '—'}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-page p-3">
+            <div className="label-cap text-ink-faint">{t('ราคาสุทธิ', 'Net Price')}</div>
+            <div className="mt-1 kbd font-semibold text-brand-700">{fmtTHB(net)}</div>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-line bg-white p-4">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <div>
+              <div className="font-semibold text-[14px]">{t('ลายเซ็นผู้รับสินค้า', 'Recipient Signature')}</div>
+              <div className="text-[12px] text-ink-mute">{t('เซ็นชื่อด้วยปากกา/นิ้วบนหน้าจอ', 'Sign with pen or finger on screen')}</div>
+            </div>
+            <Badge tone={signatureData ? 'good' : 'warn'} size="sm">
+              {signatureData ? t('พร้อมบันทึก', 'Ready') : t('รอลายเซ็น', 'Waiting')}
+            </Badge>
+          </div>
+          <SignaturePad value={signatureData} onChange={setSignatureData} lang={lang}/>
+        </div>
+
+        <Field label={t('หมายเหตุการเซ็นใหม่', 'Re-sign Note')} required>
+          <textarea
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            className="w-full min-h-[78px] rounded-lg border border-line2 bg-white px-3 py-2 text-[14px] placeholder:text-ink-faint focus-ring"/>
+        </Field>
+      </div>
+    </Modal>
+  );
+}
+
 function SOCancelModal({ so, onClose, onConfirm, lang }) {
   const t = (th, en) => lang === 'en' ? en : th;
   const [reason, setReason] = useState('');
@@ -724,9 +840,25 @@ function matchesSOHistorySearch(so, query, itemMap, custMap) {
     c.dept,
     c.pos,
     so.canceled ? 'canceled ยกเลิกแล้ว' : 'active ใช้งาน',
+    signatureNeedsResign(so) ? 're-sign required ต้องเซ็นใหม่' : '',
     so.cancelReason,
     itemText,
   ].filter(Boolean).join(' ').toLowerCase().includes(q);
+}
+
+function signatureNeedsResign(so) {
+  if (!so || so.canceled || so.sig) return false;
+  return (so.audit || []).some(entry => {
+    const reason = String(entry.reason || '').toLowerCase();
+    return reason.includes('old signature cleared for re-signing') || reason.includes('ล้างลายเซ็นเดิม');
+  });
+}
+
+function signatureStatusLabel(so, lang) {
+  const t = (th, en) => lang === 'en' ? en : th;
+  if (so.sig) return t('มีลายเซ็น', 'Signed');
+  if (signatureNeedsResign(so)) return t('ต้องเซ็นใหม่', 'Re-sign required');
+  return t('ยังไม่ได้เซ็น', 'Not signed');
 }
 
 function escapeHTML(value) {
@@ -751,6 +883,7 @@ function StockOutPage({ store, lang }) {
   const [sigData, setSigData] = useState(null);
   const [viewSO, setViewSO] = useState(null);
   const [editSO, setEditSO] = useState(null);
+  const [resignSO, setResignSO] = useState(null);
   const [cancelSO, setCancelSO] = useState(null);
   const [savedSO, setSavedSO] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -844,7 +977,7 @@ function StockOutPage({ store, lang }) {
       originalNet: subtotal + (so.shipping || 0) - (so.discount || 0),
       status: so.canceled ? t('ยกเลิกแล้ว', 'Canceled') : t('ใช้งาน', 'Active'),
       cancelReason: so.cancelReason || '',
-      signature: so.sig ? t('มีลายเซ็น', 'Signed') : t('ยังไม่ได้เซ็น', 'Not signed'),
+      signature: signatureStatusLabel(so, lang),
       itemSummary: so.lines.map(line => {
         const item = itemMap.get(line.code) || {};
         return `${line.code} ${item.name || ''} x${line.qty}`.trim();
@@ -917,7 +1050,7 @@ function StockOutPage({ store, lang }) {
         <td class="right mono">${row.items}</td>
         <td class="right mono">${fmtTHB(row.net)}</td>
         <td><span class="badge ${row.so.canceled ? 'badge-out' : 'badge-in'}">${escapeHTML(row.status)}</span></td>
-        <td><span class="badge ${row.so.sig ? 'badge-in' : 'badge-out'}">${escapeHTML(row.signature)}</span></td>
+        <td><span class="badge ${row.so.sig ? 'badge-in' : signatureNeedsResign(row.so) ? 'badge-warn' : 'badge-out'}">${escapeHTML(row.signature)}</span></td>
       </tr>`).join('');
     printWindow(t('รายงานประวัติการเบิกสินค้า', 'Withdrawal History Report'), `
       <div class="info-grid">
@@ -951,6 +1084,15 @@ function StockOutPage({ store, lang }) {
     if (ok) {
       setViewSO(null);
       Toast.push(`${t('แก้ไข SO สำเร็จ', 'SO updated')} ${id}`);
+    }
+    return ok;
+  }
+
+  async function saveSOResign(id, patch, reason) {
+    const ok = await actions.updSO(id, patch, reason);
+    if (ok) {
+      setViewSO(null);
+      Toast.push(`${t('บันทึกลายเซ็นใหม่สำเร็จ', 'Re-signature saved')} ${id}`);
     }
     return ok;
   }
@@ -1201,6 +1343,7 @@ function StockOutPage({ store, lang }) {
               <tbody className="divide-y divide-line">
                 {recentSOs.map(so => {
                   const c = custMap.get(so.custCode) || {};
+                  const needsResign = signatureNeedsResign(so);
                   const soSubtotal = so.lines.reduce((s, l) => {
                     const it = itemMap.get(l.code);
                     return s + (it ? it.sell * l.qty : 0);
@@ -1223,19 +1366,28 @@ function StockOutPage({ store, lang }) {
                         </Badge>
                       </td>
                       <td className="px-3 py-2.5 text-center">
-                        <span className={`inline-flex items-center gap-1 text-[11.5px] font-medium px-2 py-0.5 rounded-full ${so.sig ? 'bg-good-bg text-good-fg' : 'bg-danger-bg text-danger-fg'}`}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${so.sig ? 'bg-good-fg' : 'bg-danger-fg'}`}/>
-                          {so.sig ? t('มีลายเซ็น', 'Signed') : t('ยังไม่ได้เซ็น', 'Not signed')}
+                        <span className={`inline-flex items-center gap-1 text-[11.5px] font-medium px-2 py-0.5 rounded-full ${so.sig ? 'bg-good-bg text-good-fg' : needsResign ? 'bg-amber2-bg text-amber2-fg' : 'bg-danger-bg text-danger-fg'}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${so.sig ? 'bg-good-fg' : needsResign ? 'bg-amber2-fg' : 'bg-danger-fg'}`}/>
+                          {signatureStatusLabel(so, lang)}
                         </span>
                       </td>
                       <td className="px-3 py-2.5 text-center">
                         <div className="inline-flex items-center gap-1">
+                          {needsResign && (
+                            <Button variant="soft" size="xs" icon={<Icon.Edit size={13}/>}
+                              onClick={() => setResignSO(so)}>{t('เซ็นใหม่', 'Re-sign')}</Button>
+                          )}
                           <Button variant="soft" size="xs" icon={<Icon.Eye size={13}/>}
                             onClick={() => setViewSO(so)}>{t('ดู', 'View')}</Button>
                           <Button variant="ghost" size="xs" icon={<Icon.Edit size={13}/>} disabled={so.canceled}
                             onClick={() => setEditSO(so)}>{t('แก้ไข', 'Edit')}</Button>
                           <Button variant="ghost" size="xs" icon={<Icon.Print size={13}/>}
                             onClick={() => {
+                              if (needsResign) {
+                                Toast.push(t('กรุณาเซ็นใหม่ก่อนพิมพ์เอกสารสุดท้าย', 'Please re-sign before printing the final document'), 'danger');
+                                setResignSO(so);
+                                return;
+                              }
                               const html = buildSOPrintHTML(so, state.items, state.customers, lang);
                               printWindow(`${t('ใบเบิกสินค้า', 'Sale Order')} ${so.id}`, html);
                             }}>{t('พิมพ์', 'Print')}</Button>
@@ -1261,6 +1413,7 @@ function StockOutPage({ store, lang }) {
           onClose={() => setViewSO(null)}
           onEdit={(so) => setEditSO(so)}
           onCancel={(so) => setCancelSO(so)}
+          onResign={(so) => setResignSO(so)}
           lang={lang}
         />
       )}
@@ -1272,6 +1425,17 @@ function StockOutPage({ store, lang }) {
           customers={state.customers}
           onClose={() => setEditSO(null)}
           onSave={saveSOEdit}
+          lang={lang}
+        />
+      )}
+
+      {resignSO && (
+        <SOResignModal
+          so={resignSO}
+          items={state.items}
+          customers={state.customers}
+          onClose={() => setResignSO(null)}
+          onSave={saveSOResign}
           lang={lang}
         />
       )}

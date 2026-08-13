@@ -320,6 +320,42 @@ async function run() {
     ok(supabase.calls.some(c => c.table === 'sale_orders' && c.op === 'update' && c.val === 'SO10007' && c.patch.signature_data === ''), 'signature image cleared');
   }
 
+  console.log('updSO — can save replacement signature after re-sign');
+  {
+    const toastLog = [];
+    const seed = {
+      items: [], customers: [],
+      purchase_orders: [],
+      sale_orders: [{
+        id: 'SO10008',
+        date: '2026-07-01',
+        cust_code: 'CUST0001',
+        shipping: 0,
+        discount: 0,
+        has_sig: false,
+        signature_data: '',
+      }],
+      sale_order_lines: [{ id: 10, so_id: 'SO10008', item_code: 'ITM-1001', qty: 2, price: 100 }],
+    };
+    const supabase = makeSupabase(seed);
+    const store = loadStore({ supabase, toastLog });
+    await store.flush();
+
+    const result = await store.get().actions.updSO('SO10008', {
+      date: '2026-07-01',
+      custCode: 'CUST0001',
+      shipping: 0,
+      discount: 0,
+      sig: true,
+      signatureData: 'data:image/png;base64,new',
+      lines: [{ id: 10, code: 'ITM-1001', qty: 2, price: 100 }],
+    }, 'Recipient re-signed after document edit');
+
+    ok(result === true, 'updSO resolves true');
+    ok(supabase.calls.some(c => c.table === 'sale_orders' && c.op === 'update' && c.val === 'SO10008' && c.patch.has_sig === true), 'signature flag saved');
+    ok(supabase.calls.some(c => c.table === 'sale_orders' && c.op === 'update' && c.val === 'SO10008' && c.patch.signature_data === 'data:image/png;base64,new'), 'replacement signature image saved');
+  }
+
   console.log('cancelSO — keeps SO history with canceled status');
   {
     const toastLog = [];

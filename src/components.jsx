@@ -295,6 +295,7 @@ function printWindow(title, bodyHtml) {
       .good { color:#0F6E56; }
       .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:11px; }
       .badge-in { background:#E1F5EE; color:#0F6E56; }
+      .badge-warn { background:#FEF3C7; color:#92400E; }
       .badge-out { background:#FCEBEB; color:#A32D2D; }
       .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; font-size:12.5px; }
       .info-item label { color:#6B7280; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; display:block; margin-bottom:2px; }
