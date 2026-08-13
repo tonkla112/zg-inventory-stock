@@ -278,6 +278,7 @@ function SOEditModal({ so, items, customers, onClose, onSave, lang }) {
     reason: '',
   }));
   const [busy, setBusy] = useState(false);
+  const [confirmBack, setConfirmBack] = useState(false);
   const itemMap = useMemo(() => new Map(items.map(item => [item.code, item])), [items]);
   const custMap = useMemo(() => new Map(customers.map(c => [c.code, c])), [customers]);
   const cust = custMap.get(form.custCode);
@@ -286,6 +287,30 @@ function SOEditModal({ so, items, customers, onClose, onSave, lang }) {
     return sum + (item ? item.sell * (line.qty || 0) : 0);
   }, 0), [form.lines, itemMap]);
   const net = subtotal + (+form.shipping || 0) - (+form.discount || 0);
+  const originalDraft = useMemo(() => JSON.stringify({
+    date: so.date,
+    custCode: so.custCode,
+    shipping: +so.shipping || 0,
+    discount: +so.discount || 0,
+    lines: so.lines.map(line => ({ code: line.code, qty: +line.qty || 0 })),
+  }), [so]);
+  const currentDraft = useMemo(() => JSON.stringify({
+    date: form.date,
+    custCode: form.custCode,
+    shipping: +form.shipping || 0,
+    discount: +form.discount || 0,
+    lines: form.lines.map(line => ({ code: line.code, qty: +line.qty || 0 })),
+  }), [form]);
+  const hasUnsavedChanges = originalDraft !== currentDraft || form.reason.trim().length > 0;
+
+  function requestClose() {
+    if (busy) return;
+    if (hasUnsavedChanges) {
+      setConfirmBack(true);
+      return;
+    }
+    onClose();
+  }
 
   function setField(key, value) {
     setForm(current => ({ ...current, [key]: value }));
@@ -329,15 +354,16 @@ function SOEditModal({ so, items, customers, onClose, onSave, lang }) {
   }
 
   return (
-    <Modal open onClose={onClose} title={`${t('แก้ไขใบเบิกสินค้า', 'Edit Withdrawal')} · ${so.id}`} width="max-w-5xl"
+    <React.Fragment>
+    <Modal open onClose={requestClose} title={`${t('แก้ไขใบเบิกสินค้า', 'Edit Withdrawal')} · ${so.id}`} width="max-w-5xl"
       headerAction={
-        <Button variant="ghost" size="sm" icon={<Icon.ChevronLeft size={14}/>} onClick={onClose}>
+        <Button variant="ghost" size="sm" icon={<Icon.ChevronLeft size={14}/>} onClick={requestClose}>
           {t('กลับ', 'Back')}
         </Button>
       }
       footer={
         <React.Fragment>
-          <Button variant="ghost" icon={<Icon.ChevronLeft size={14}/>} onClick={onClose}>{t('กลับ', 'Back')}</Button>
+          <Button variant="ghost" icon={<Icon.ChevronLeft size={14}/>} onClick={requestClose}>{t('กลับ', 'Back')}</Button>
           <Button variant="primary" icon={<Icon.Save size={15}/>} disabled={busy} onClick={submit}>
             {busy ? t('กำลังบันทึก...', 'Saving...') : t('บันทึกการแก้ไข', 'Save Changes')}
           </Button>
@@ -438,6 +464,22 @@ function SOEditModal({ so, items, customers, onClose, onSave, lang }) {
         </div>
       </div>
     </Modal>
+    {confirmBack && (
+      <Modal open onClose={() => setConfirmBack(false)} title={t('ออกจากหน้าแก้ไข?', 'Leave Edit?')} width="max-w-md"
+        footer={
+          <React.Fragment>
+            <Button variant="ghost" onClick={() => setConfirmBack(false)}>{t('แก้ไขต่อ', 'Keep Editing')}</Button>
+            <Button variant="danger" icon={<Icon.ChevronLeft size={14}/>} onClick={onClose}>
+              {t('ออกโดยไม่บันทึก', 'Leave Without Saving')}
+            </Button>
+          </React.Fragment>
+        }>
+        <div className="rounded-lg border border-amber2-bg bg-amber2-bg/40 p-3 text-[13px] text-amber2-fg leading-relaxed">
+          {t('มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก หากออกตอนนี้ข้อมูลที่แก้ไขจะหายไป', 'You have unsaved changes. If you leave now, your edits will be lost.')}
+        </div>
+      </Modal>
+    )}
+    </React.Fragment>
   );
 }
 
