@@ -323,28 +323,36 @@ function printWindow(title, bodyHtml) {
     <style>
       #zg-print-preview button { -webkit-tap-highlight-color: transparent; }
       #zg-print-preview [data-print-toolbar] { min-height:72px;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 18px;background:#11181C;border-bottom:1px solid #243038; }
+      #zg-print-preview [data-print-leading] { min-width:0;display:flex;align-items:center;gap:12px; }
       #zg-print-preview [data-print-title] { min-width:0; }
       #zg-print-preview [data-print-actions] { display:flex;align-items:center;gap:10px;flex-shrink:0; }
       #zg-print-preview [data-print-group] { display:flex;align-items:center;gap:6px;padding:3px;border:1px solid #2A3740;border-radius:10px;background:#0B1114; }
       #zg-print-preview [data-print-button] { min-height:42px;padding:9px 14px;border:1px solid #35444D;border-radius:8px;background:#162025;color:#E5E7EB;font:600 14px "IBM Plex Sans","IBM Plex Sans Thai",system-ui,sans-serif;cursor:pointer;white-space:nowrap; }
       #zg-print-preview [data-print-button]:hover { background:#1C2A30; }
+      #zg-print-preview [data-print-close] { border-color:#54D7AE;background:#12372E;color:#8EF0CF;font-weight:800; }
+      #zg-print-preview [data-print-close]:hover { background:#164638; }
       #zg-print-preview [data-print-button].primary { border-color:#1D9E75;background:#1D9E75;color:white;font-weight:700; }
       #zg-print-preview [data-print-button].active { border-color:#54D7AE;background:#12372E;color:#8EF0CF; }
       #zg-print-preview [data-print-scroll] { flex:1;min-height:0;padding:18px;background:#0B1114;overflow:auto; }
       #zg-print-preview iframe { display:block;width:min(100%,980px);height:100%;min-height:720px;margin:0 auto;border:0;border-radius:8px;background:white;box-shadow:0 24px 80px rgba(0,0,0,.38);transition:width .18s ease; }
       @media (max-width: 860px) {
         #zg-print-preview [data-print-toolbar] { align-items:flex-start;flex-direction:column;padding:12px; }
+        #zg-print-preview [data-print-leading] { width:100%;align-items:flex-start;flex-direction:column;gap:10px; }
+        #zg-print-preview [data-print-title] { width:100%; }
         #zg-print-preview [data-print-actions] { width:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px; }
         #zg-print-preview [data-print-group] { grid-column:1 / -1;display:grid;grid-template-columns:repeat(3,1fr);gap:6px; }
         #zg-print-preview [data-print-button] { width:100%;min-height:46px;padding:10px 12px; }
         #zg-print-preview [data-print-scroll] { padding:10px; }
-        #zg-print-preview iframe { min-height:calc(100vh - 180px);border-radius:6px; }
+        #zg-print-preview iframe { min-height:calc(100vh - 230px);border-radius:6px; }
       }
     </style>
     <div data-print-toolbar>
-      <div data-print-title>
-        <div style="font-size:11px;line-height:1.2;text-transform:uppercase;letter-spacing:.12em;color:#9CA3AF;">Print Preview</div>
-        <div style="margin-top:3px;font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${safeTitle}</div>
+      <div data-print-leading>
+        <button type="button" data-print-button data-print-close aria-label="Back to app">← กลับ / Back</button>
+        <div data-print-title>
+          <div style="font-size:11px;line-height:1.2;text-transform:uppercase;letter-spacing:.12em;color:#9CA3AF;">Print Preview</div>
+          <div style="margin-top:3px;font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${safeTitle}</div>
+        </div>
       </div>
       <div data-print-actions>
         <div data-print-group aria-label="Preview size">
@@ -353,7 +361,6 @@ function printWindow(title, bodyHtml) {
           <button type="button" data-print-button data-print-zoom="125">125%</button>
         </div>
         <button type="button" data-print-button data-print-download>ดาวน์โหลด / Download</button>
-        <button type="button" data-print-button data-print-close>← กลับ / Back</button>
         <button type="button" data-print-button data-print-action class="primary">Save PDF / Print</button>
       </div>
     </div>
