@@ -57,13 +57,21 @@ function isMissingSignatureColumn(error) {
   const message = String(error?.message || '').toLowerCase();
   return message.includes('signature_data') && (message.includes('column') || message.includes('schema cache'));
 }
+function isMissingCancelColumns(error) {
+  const message = String(error?.message || '').toLowerCase();
+  return ['status', 'cancel_reason', 'canceled_at'].some(column => message.includes(column))
+    && (message.includes('column') || message.includes('schema cache'));
+}
+function isSOCanceled(so) {
+  return so?.status === 'canceled' || !!so?.canceled || (so?.audit || []).some(entry => entry.action === 'cancel');
+}
 
 // ---- Compute helpers (unchanged from original) ----
 function computeStock(items, pos, sos) {
   const map = new Map();
   items.forEach(i => map.set(i.code, 0));
   pos.forEach(p => map.set(p.code, (map.get(p.code) || 0) + p.qty));
-  sos.forEach(s => s.lines.forEach(l => map.set(l.code, (map.get(l.code) || 0) - l.qty)));
+  sos.filter(s => !isSOCanceled(s)).forEach(s => s.lines.forEach(l => map.set(l.code, (map.get(l.code) || 0) - l.qty)));
   return map;
 }
 function soTotals(so, items) {
@@ -94,13 +102,22 @@ const mapCust = r => ({
 const mapPO = r => ({
   id: r.id, date: r.date, code: r.item_code, name: r.item_name, unit: r.unit, price: +r.price, qty: r.qty,
 });
-const mapSO = (r, lines = []) => ({
-  id: r.id, date: r.date, custCode: r.cust_code,
-  shipping: +r.shipping, discount: +r.discount, sig: r.has_sig || !!normalizeSignatureData(r.signature_data),
-  signatureData: normalizeSignatureData(r.signature_data) || getStoredSignature(r.id),
-  lines: lines.map(l => ({ id: l.id, code: l.item_code, qty: l.qty, price: +l.price })),
-  audit: getStoredSOAudit(r.id),
-});
+const mapSO = (r, lines = []) => {
+  const audit = getStoredSOAudit(r.id);
+  const cancelAudit = [...audit].reverse().find(entry => entry.action === 'cancel') || {};
+  const canceled = r.status === 'canceled' || !!r.canceled_at || !!cancelAudit.reason;
+  return {
+    id: r.id, date: r.date, custCode: r.cust_code,
+    shipping: +r.shipping, discount: +r.discount, sig: r.has_sig || !!normalizeSignatureData(r.signature_data),
+    signatureData: normalizeSignatureData(r.signature_data) || getStoredSignature(r.id),
+    lines: lines.map(l => ({ id: l.id, code: l.item_code, qty: l.qty, price: +l.price })),
+    status: canceled ? 'canceled' : (r.status || 'active'),
+    canceled,
+    canceledAt: r.canceled_at || cancelAudit.at || '',
+    cancelReason: r.cancel_reason || cancelAudit.reason || '',
+    audit,
+  };
+};
 
 function soHeaderRow(so, signatureData, hasSignature) {
   return {
@@ -290,15 +307,30 @@ function useStore() {
       const so = prevSos.find(s => s.id === id);
       if (!so) return false;
 
-      setState(s => ({ ...s, sos: s.sos.filter(x => x.id !== id) }));
-      const { error } = await _db().from('sale_orders').delete().eq('id', id);
+      const auditEntry = { action: 'cancel', reason: cleanReason };
+      const canceledAt = new Date().toISOString();
+      const canceledSO = {
+        ...so,
+        status: 'canceled',
+        canceled: true,
+        canceledAt,
+        cancelReason: cleanReason,
+        audit: [...(so.audit || []), { at: canceledAt, ...auditEntry }],
+      };
+
+      setState(s => ({ ...s, sos: s.sos.map(x => x.id === id ? canceledSO : x) }));
+      let { error } = await _db().from('sale_orders').update({
+        status: 'canceled',
+        cancel_reason: cleanReason,
+        canceled_at: canceledAt,
+      }).eq('id', id);
+      if (isMissingCancelColumns(error)) error = null;
       if (error) {
         setState(s => ({ ...s, sos: prevSos }));
         Toast.push('ยกเลิก SO ไม่สำเร็จ: ' + error.message, 'danger');
         return false;
       }
-      removeStoredSignature(id);
-      appendStoredSOAudit(id, { action: 'cancel', reason: cleanReason });
+      appendStoredSOAudit(id, auditEntry);
       return true;
     },
 

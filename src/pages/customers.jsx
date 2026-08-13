@@ -17,7 +17,7 @@ function CustomersPage({ store, lang }) {
   const itemMap = useMemo(() => new Map(state.items.map(i => [i.code, i])), [state.items]);
   const orderStatsByCust = useMemo(() => {
     const stats = new Map();
-    state.sos.forEach(o => {
+    state.sos.filter(o => !o.canceled).forEach(o => {
       const current = stats.get(o.custCode) || { ordersCount: 0, total: 0 };
       stats.set(o.custCode, {
         ordersCount: current.ordersCount + 1,
@@ -169,7 +169,7 @@ function CustomerHistoryModal({ cust, sos, items, onClose, lang }) {
   const custSOs = useMemo(() => sos
     .filter(s => s.custCode === cust.code)
     .sort((a,b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)), [sos, cust.code]);
-  const custSORows = useMemo(() => custSOs.map(s => ({ ...s, net: soTotalsFromMap(s, itemMap).net })), [custSOs, itemMap]);
+  const custSORows = useMemo(() => custSOs.map(s => ({ ...s, net: s.canceled ? 0 : soTotalsFromMap(s, itemMap).net })), [custSOs, itemMap]);
   const totalSpend = useMemo(() => custSORows.reduce((sum, s) => sum + s.net, 0), [custSORows]);
 
   return (
@@ -203,13 +203,14 @@ function CustomerHistoryModal({ cust, sos, items, onClose, lang }) {
                   <th className="text-left px-4 py-2.5 label-cap">{t('วันที่', 'Date')}</th>
                   <th className="text-left px-4 py-2.5 label-cap">{t('รายการสินค้า', 'Items')}</th>
                   <th className="text-right px-4 py-2.5 label-cap">{t('จำนวนเงิน', 'Amount')}</th>
+                  <th className="text-center px-4 py-2.5 label-cap">{t('สถานะ', 'Status')}</th>
                   <th className="text-center px-4 py-2.5 label-cap">{t('ลายเซ็น', 'Signature')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
                 {custSORows.map(s => (
-                  <tr key={s.id} className="row-hover">
-                    <td className="px-4 py-2.5"><span className="kbd text-[12px] font-semibold text-brand-700">{s.id}</span></td>
+                  <tr key={s.id} className={`row-hover ${s.canceled ? 'bg-page/45 text-ink-mute' : ''}`}>
+                    <td className="px-4 py-2.5"><span className={`kbd text-[12px] font-semibold ${s.canceled ? 'text-ink-faint' : 'text-brand-700'}`}>{s.id}</span></td>
                     <td className="px-4 py-2.5 text-ink-mute">{fmtDate(s.date)}</td>
                     <td className="px-4 py-2.5">
                       {s.lines.slice(0,2).map((l,i) => (
@@ -218,6 +219,11 @@ function CustomerHistoryModal({ cust, sos, items, onClose, lang }) {
                       {s.lines.length > 2 && <span className="text-ink-faint">+{s.lines.length-2} {t('รายการ', 'items')}</span>}
                     </td>
                     <td className="px-4 py-2.5 text-right kbd tabular-nums font-semibold">{fmtTHB(s.net)}</td>
+                    <td className="px-4 py-2.5 text-center">
+                      <Badge tone={s.canceled ? 'danger' : 'good'} size="xs">
+                        {s.canceled ? t('ยกเลิกแล้ว', 'Canceled') : t('ใช้งาน', 'Active')}
+                      </Badge>
+                    </td>
                     <td className="px-4 py-2.5 text-center">
                       {s.sig
                         ? <Badge tone="good" size="xs" icon={<Icon.Check size={10}/>}>{t('เซ็นแล้ว', 'Signed')}</Badge>

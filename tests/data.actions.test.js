@@ -284,7 +284,7 @@ async function run() {
     ok(toastLog.some(t => t.tone === 'danger'), 'error toast shown for missing reason');
   }
 
-  console.log('cancelSO — deletes SO header after reason');
+  console.log('cancelSO — keeps SO history with canceled status');
   {
     const toastLog = [];
     const seed = {
@@ -300,8 +300,11 @@ async function run() {
     const result = await store.get().actions.cancelSO('SO10006', 'Duplicate document');
 
     ok(result === true, 'cancelSO resolves true');
-    ok(!store.get().state.sos.find(s => s.id === 'SO10006'), 'SO removed from state');
-    ok(supabase.calls.some(c => c.table === 'sale_orders' && c.op === 'delete' && c.val === 'SO10006'), 'sale order header deleted');
+    const canceledSO = store.get().state.sos.find(s => s.id === 'SO10006');
+    ok(canceledSO && canceledSO.canceled === true, 'SO remains in history as canceled');
+    ok(canceledSO && canceledSO.cancelReason === 'Duplicate document', 'cancel reason kept on SO');
+    ok(supabase.calls.some(c => c.table === 'sale_orders' && c.op === 'update' && c.val === 'SO10006' && c.patch.status === 'canceled'), 'sale order header marked canceled');
+    ok(!supabase.calls.some(c => c.table === 'sale_orders' && c.op === 'delete' && c.val === 'SO10006'), 'sale order header not deleted');
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

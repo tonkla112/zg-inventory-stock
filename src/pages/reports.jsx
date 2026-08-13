@@ -17,7 +17,7 @@ function ReportsPage({ store, lang }) {
     state.pos.forEach(p => {
       inByCode.set(p.code, (inByCode.get(p.code) || 0) + p.qty);
     });
-    state.sos.forEach(s => {
+    state.sos.filter(s => !s.canceled).forEach(s => {
       s.lines.forEach(l => {
         outByCode.set(l.code, (outByCode.get(l.code) || 0) + l.qty);
       });
@@ -36,7 +36,7 @@ function ReportsPage({ store, lang }) {
   const movement = useMemo(() => {
     const rows = [
       ...state.pos.map(p => ({ kind:'in', date:p.date, doc:p.id, code:p.code, name:p.name, qty:p.qty, party:'รับเข้าคลัง', amount: p.price*p.qty, poId:p.id })),
-      ...state.sos.flatMap(s => s.lines.map(l => {
+      ...state.sos.filter(s => !s.canceled).flatMap(s => s.lines.map(l => {
         const it = itemMap.get(l.code) || {};
         const c = custMap.get(s.custCode) || {};
         return { kind:'out', date:s.date, doc:s.id, code:l.code, name:it.name || l.code, qty:l.qty,

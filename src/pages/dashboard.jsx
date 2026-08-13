@@ -15,7 +15,7 @@ function DashboardPage({ store, nav, lang }) {
   }, { pos: [], poAmount: 0 }), [state.pos, today]);
 
   const todaySOStats = useMemo(() => state.sos.reduce((stats, s) => {
-    if (s.date !== today) return stats;
+    if (s.date !== today || s.canceled) return stats;
     stats.sos.push(s);
     stats.soAmount += soTotalsFromMap(s, itemMap).net;
     return stats;
@@ -36,7 +36,7 @@ function DashboardPage({ store, nav, lang }) {
       kind:'in', id:p.id, date:p.date, code:p.code,
       name:p.name, qty:p.qty, party: stockInLabel, amount:p.price*p.qty,
     })),
-    ...state.sos.flatMap(s => s.lines.map(l => {
+    ...state.sos.filter(s => !s.canceled).flatMap(s => s.lines.map(l => {
       const it = itemMap.get(l.code);
       return {
         kind:'out', id:s.id, date:s.date, code:l.code,

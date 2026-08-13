@@ -10,6 +10,7 @@ function buildSOPrintHTML(so, items, customers, lang) {
     return s + (it ? it.sell * l.qty : 0);
   }, 0);
   const net = subtotal + (so.shipping || 0) - (so.discount || 0);
+  const isCanceled = !!so.canceled;
   const savedSignature = typeof getStoredSignature === 'function' ? getStoredSignature(so.id) : '';
   const signatureData = typeof so.signatureData === 'string' && so.signatureData.startsWith('data:image/')
     ? so.signatureData
@@ -43,6 +44,7 @@ function buildSOPrintHTML(so, items, customers, lang) {
         <div style="text-align:right;">
           <div style="font-size:18px;font-weight:700;">${t('ใบเบิกสินค้า / Sale Order', 'Sale Order / ใบเบิกสินค้า')}</div>
           <div style="font-size:13px;font-weight:600;color:#1d4ed8;">${so.id}</div>
+          ${isCanceled ? `<div style="display:inline-block;margin-top:4px;padding:2px 8px;border-radius:999px;background:#fee2e2;color:#991b1b;font-size:11px;font-weight:700;">${t('ยกเลิกแล้ว', 'Canceled')}</div>` : ''}
           <div style="font-size:12px;color:#6b7280;">${t('วันที่', 'Date')} ${so.date}</div>
         </div>
       </div>
@@ -66,6 +68,13 @@ function buildSOPrintHTML(so, items, customers, lang) {
           <td style="padding:6px 10px;font-weight:600;">${t('ส่วนลด', 'Discount')}</td>
           <td style="padding:6px 10px;">${fmtTHB(so.discount || 0)}</td>
         </tr>
+        ${isCanceled ? `
+        <tr>
+          <td style="padding:6px 10px;font-weight:600;color:#991b1b;">${t('สถานะ', 'Status')}</td>
+          <td style="padding:6px 10px;color:#991b1b;">${t('ยกเลิกแล้ว', 'Canceled')}</td>
+          <td style="padding:6px 10px;font-weight:600;color:#991b1b;">${t('เหตุผลการยกเลิก', 'Cancel Reason')}</td>
+          <td style="padding:6px 10px;color:#991b1b;">${so.cancelReason || '—'}</td>
+        </tr>` : ''}
       </table>
 
       <table style="width:100%;border-collapse:collapse;margin-bottom:18px;font-size:12.5px;">
@@ -137,6 +146,7 @@ function SODetailModal({ so, items, customers, onClose, onEdit, onCancel, lang }
     return s + (it ? it.sell * l.qty : 0);
   }, 0);
   const net = subtotal + (so.shipping || 0) - (so.discount || 0);
+  const isCanceled = !!so.canceled;
 
   function handlePrint() {
     const html = buildSOPrintHTML(so, items, customers, lang);
@@ -151,11 +161,14 @@ function SODetailModal({ so, items, customers, onClose, onEdit, onCancel, lang }
         <div className="flex items-center justify-between px-5 py-4 border-b border-line">
           <div>
             <div className="font-semibold text-[15px]">{t('รายละเอียดใบเบิกสินค้า', 'Sale Order Detail')}</div>
-            <div className="text-[12px] text-ink-mute mt-0.5">Sale Order Detail — <span className="kbd">{so.id}</span></div>
+            <div className="text-[12px] text-ink-mute mt-0.5 flex items-center gap-2 flex-wrap">
+              <span>Sale Order Detail — <span className="kbd">{so.id}</span></span>
+              {isCanceled && <Badge tone="danger" size="xs">{t('ยกเลิกแล้ว', 'Canceled')}</Badge>}
+            </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" icon={<Icon.Edit size={14}/>} onClick={() => onEdit?.(so)}>{t('แก้ไข', 'Edit')}</Button>
-            <Button variant="danger" size="sm" icon={<Icon.X size={14}/>} onClick={() => onCancel?.(so)}>{t('ยกเลิก SO', 'Cancel SO')}</Button>
+            <Button variant="secondary" size="sm" icon={<Icon.Edit size={14}/>} disabled={isCanceled} onClick={() => onEdit?.(so)}>{t('แก้ไข', 'Edit')}</Button>
+            <Button variant="danger" size="sm" icon={<Icon.X size={14}/>} disabled={isCanceled} onClick={() => onCancel?.(so)}>{t('ยกเลิก SO', 'Cancel SO')}</Button>
             <Button variant="info" size="sm" icon={<Icon.Print size={14}/>} onClick={handlePrint}>{t('พิมพ์', 'Print')}</Button>
             <IconButton icon={<Icon.X size={16}/>} onClick={onClose}/>
           </div>
@@ -172,6 +185,12 @@ function SODetailModal({ so, items, customers, onClose, onEdit, onCancel, lang }
             <div className="bg-page rounded-lg p-3 space-y-1">
               <div className="label-cap text-ink-faint">{t('วันที่', 'Date')}</div>
               <div>{so.date}</div>
+            </div>
+            <div className="bg-page rounded-lg p-3 space-y-1">
+              <div className="label-cap text-ink-faint">{t('สถานะ', 'Status')}</div>
+              <Badge tone={isCanceled ? 'danger' : 'good'} size="sm">
+                {isCanceled ? t('ยกเลิกแล้ว', 'Canceled') : t('ใช้งาน', 'Active')}
+              </Badge>
             </div>
             <div className="bg-page rounded-lg p-3 space-y-1">
               <div className="label-cap text-ink-faint">{t('ชื่อผู้รับสินค้า', 'Recipient Name')}</div>
@@ -249,8 +268,16 @@ function SODetailModal({ so, items, customers, onClose, onEdit, onCancel, lang }
               <div className="h-px bg-line my-1"/>
               <div className="flex justify-between font-semibold text-[14px]">
                 <span>{t('ราคาสุทธิ / Net', 'Net / ราคาสุทธิ')}</span>
-                <span className="kbd text-brand-700 font-bold">{fmtTHB(net)}</span>
+                <span className={`kbd font-bold ${isCanceled ? 'text-ink-faint line-through' : 'text-brand-700'}`}>{fmtTHB(net)}</span>
               </div>
+              {isCanceled && (
+                <div className="mt-3 rounded-lg border border-danger-bg bg-danger-bg p-3">
+                  <div className="label-cap text-danger-fg mb-1">{t('เหตุผลการยกเลิก', 'Cancel Reason')}</div>
+                  <div className="text-[12.5px] text-danger-fg leading-relaxed">
+                    {so.cancelReason || t('ไม่ได้ระบุเหตุผล', 'No reason recorded')}
+                  </div>
+                </div>
+              )}
               {so.audit?.length > 0 && (
                 <div className="mt-3 rounded-lg border border-line bg-page p-3">
                   <div className="label-cap text-ink-faint mb-1">{t('บันทึกการแก้ไขล่าสุด', 'Latest Change Note')}</div>
@@ -526,7 +553,7 @@ function SOCancelModal({ so, onClose, onConfirm, lang }) {
       }>
       <div className="space-y-4">
         <div className="rounded-lg border border-danger-bg bg-danger-bg p-3 text-[12.5px] text-danger-fg leading-relaxed">
-          {t('การยกเลิกจะลบ SO นี้ออกจากประวัติและคืนสต๊อกตามรายการสินค้าเดิม', 'Canceling removes this SO from history and restores stock from its line items.')}
+          {t('การยกเลิกจะเก็บ SO นี้ไว้ในประวัติพร้อมสถานะยกเลิก และคืนสต๊อกตามรายการสินค้าเดิม', 'Canceling keeps this SO in history as Canceled and restores stock from its line items.')}
         </div>
         <div className="grid grid-cols-2 gap-3 text-[13px]">
           <div className="rounded-lg border border-line bg-page p-3">
@@ -658,6 +685,8 @@ function matchesSOHistorySearch(so, query, itemMap, custMap) {
     c.name,
     c.dept,
     c.pos,
+    so.canceled ? 'canceled ยกเลิกแล้ว' : 'active ใช้งาน',
+    so.cancelReason,
     itemText,
   ].filter(Boolean).join(' ').toLowerCase().includes(q);
 }
@@ -773,7 +802,10 @@ function StockOutPage({ store, lang }) {
       subtotal,
       shipping: so.shipping || 0,
       discount: so.discount || 0,
-      net: subtotal + (so.shipping || 0) - (so.discount || 0),
+      net: so.canceled ? 0 : subtotal + (so.shipping || 0) - (so.discount || 0),
+      originalNet: subtotal + (so.shipping || 0) - (so.discount || 0),
+      status: so.canceled ? t('ยกเลิกแล้ว', 'Canceled') : t('ใช้งาน', 'Active'),
+      cancelReason: so.cancelReason || '',
       signature: so.sig ? t('มีลายเซ็น', 'Signed') : t('ยังไม่ได้เซ็น', 'Not signed'),
       itemSummary: so.lines.map(line => {
         const item = itemMap.get(line.code) || {};
@@ -807,6 +839,8 @@ function StockOutPage({ store, lang }) {
         t('ค่าขนส่ง', 'Shipping'),
         t('ส่วนลด', 'Discount'),
         t('ราคาสุทธิ', 'Net Price'),
+        t('สถานะ', 'Status'),
+        t('เหตุผลการยกเลิก', 'Cancel Reason'),
         t('ลายเซ็น', 'Signature'),
       ],
       exportHistoryRows.map(row => [
@@ -822,6 +856,8 @@ function StockOutPage({ store, lang }) {
         row.shipping,
         row.discount,
         row.net,
+        row.status,
+        row.cancelReason,
         row.signature,
       ])
     );
@@ -842,6 +878,7 @@ function StockOutPage({ store, lang }) {
         <td>${escapeHTML(row.recipient)}<br><span style="color:#6B7280;font-size:11px">${escapeHTML(row.department || row.so.custCode)}</span></td>
         <td class="right mono">${row.items}</td>
         <td class="right mono">${fmtTHB(row.net)}</td>
+        <td><span class="badge ${row.so.canceled ? 'badge-out' : 'badge-in'}">${escapeHTML(row.status)}</span></td>
         <td><span class="badge ${row.so.sig ? 'badge-in' : 'badge-out'}">${escapeHTML(row.signature)}</span></td>
       </tr>`).join('');
     printWindow(t('รายงานประวัติการเบิกสินค้า', 'Withdrawal History Report'), `
@@ -858,12 +895,14 @@ function StockOutPage({ store, lang }) {
           <th>${t('ผู้รับสินค้า', 'Recipient')}</th>
           <th class="right">${t('จำนวนรายการ', 'Items')}</th>
           <th class="right">${t('ราคาสุทธิ', 'Net Price')}</th>
+          <th>${t('สถานะ', 'Status')}</th>
           <th>${t('ลายเซ็น', 'Signature')}</th>
         </tr></thead>
         <tbody>${tableRows}</tbody>
         <tfoot><tr>
           <td colspan="4" class="right">${t('รวมทั้งหมด', 'Grand Total')}</td>
           <td class="right mono brand">${fmtTHB(exportHistoryTotal)}</td>
+          <td></td>
           <td></td>
         </tr></tfoot>
       </table>`);
@@ -1116,6 +1155,7 @@ function StockOutPage({ store, lang }) {
                   <th className="text-left font-medium px-3 py-2.5 label-cap">{t('ผู้รับสินค้า', 'Recipient')}</th>
                   <th className="text-right font-medium px-3 py-2.5 label-cap">{t('จำนวนรายการ', 'Items')}</th>
                   <th className="text-right font-medium px-3 py-2.5 label-cap">{t('ราคาสุทธิ', 'Net Price')}</th>
+                  <th className="text-center font-medium px-3 py-2.5 label-cap">{t('สถานะ', 'Status')}</th>
                   <th className="text-center font-medium px-3 py-2.5 label-cap">{t('ลายเซ็น', 'Signature')}</th>
                   <th className="text-center font-medium px-3 py-2.5 label-cap">Actions</th>
                 </tr>
@@ -1129,15 +1169,21 @@ function StockOutPage({ store, lang }) {
                   }, 0);
                   const soNet = soSubtotal + (so.shipping || 0) - (so.discount || 0);
                   return (
-                    <tr key={so.id} className="hover:bg-page/60 transition-colors">
-                      <td className="px-3 py-2.5 kbd text-brand-700 font-semibold">{so.id}</td>
+                    <tr key={so.id} className={`hover:bg-page/60 transition-colors ${so.canceled ? 'bg-page/45 text-ink-mute' : ''}`}>
+                      <td className={`px-3 py-2.5 kbd font-semibold ${so.canceled ? 'text-ink-faint' : 'text-brand-700'}`}>{so.id}</td>
                       <td className="px-3 py-2.5 text-ink-soft tabular-nums">{so.date}</td>
                       <td className="px-3 py-2.5">
                         <div className="font-medium">{c.name || so.custCode}</div>
                         {c.dept && <div className="text-[11px] text-ink-faint">{c.dept}</div>}
+                        {so.canceled && so.cancelReason && <div className="text-[11px] text-danger-fg mt-0.5 truncate max-w-[220px]">{so.cancelReason}</div>}
                       </td>
                       <td className="px-3 py-2.5 text-right tabular-nums text-ink-mute">{so.lines.length}</td>
-                      <td className="px-3 py-2.5 text-right kbd tabular-nums font-semibold">{fmtTHB(soNet)}</td>
+                      <td className={`px-3 py-2.5 text-right kbd tabular-nums font-semibold ${so.canceled ? 'text-ink-faint line-through' : ''}`}>{fmtTHB(soNet)}</td>
+                      <td className="px-3 py-2.5 text-center">
+                        <Badge tone={so.canceled ? 'danger' : 'good'} size="xs">
+                          {so.canceled ? t('ยกเลิกแล้ว', 'Canceled') : t('ใช้งาน', 'Active')}
+                        </Badge>
+                      </td>
                       <td className="px-3 py-2.5 text-center">
                         <span className={`inline-flex items-center gap-1 text-[11.5px] font-medium px-2 py-0.5 rounded-full ${so.sig ? 'bg-good-bg text-good-fg' : 'bg-danger-bg text-danger-fg'}`}>
                           <span className={`h-1.5 w-1.5 rounded-full ${so.sig ? 'bg-good-fg' : 'bg-danger-fg'}`}/>
@@ -1148,14 +1194,14 @@ function StockOutPage({ store, lang }) {
                         <div className="inline-flex items-center gap-1">
                           <Button variant="soft" size="xs" icon={<Icon.Eye size={13}/>}
                             onClick={() => setViewSO(so)}>{t('ดู', 'View')}</Button>
-                          <Button variant="ghost" size="xs" icon={<Icon.Edit size={13}/>}
+                          <Button variant="ghost" size="xs" icon={<Icon.Edit size={13}/>} disabled={so.canceled}
                             onClick={() => setEditSO(so)}>{t('แก้ไข', 'Edit')}</Button>
                           <Button variant="ghost" size="xs" icon={<Icon.Print size={13}/>}
                             onClick={() => {
                               const html = buildSOPrintHTML(so, state.items, state.customers, lang);
                               printWindow(`${t('ใบเบิกสินค้า', 'Sale Order')} ${so.id}`, html);
                             }}>{t('พิมพ์', 'Print')}</Button>
-                          <Button variant="danger" size="xs" icon={<Icon.X size={13}/>}
+                          <Button variant="danger" size="xs" icon={<Icon.X size={13}/>} disabled={so.canceled}
                             onClick={() => setCancelSO(so)}>{t('ยกเลิก', 'Cancel')}</Button>
                         </div>
                       </td>

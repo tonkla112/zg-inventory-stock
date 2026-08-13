@@ -51,11 +51,26 @@ CREATE TABLE IF NOT EXISTS sale_orders (
   discount    NUMERIC(12,2) DEFAULT 0,
   has_sig     BOOLEAN DEFAULT false,
   signature_data TEXT DEFAULT '',
+  status      TEXT DEFAULT 'active' CHECK (status IN ('active', 'canceled')),
+  cancel_reason TEXT DEFAULT '',
+  canceled_at TIMESTAMPTZ,
   created_at  TIMESTAMPTZ DEFAULT now()
 );
 
 -- เพิ่ม column นี้ให้ database เดิมที่สร้าง table ไปแล้ว
 ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS signature_data TEXT DEFAULT '';
+ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS cancel_reason TEXT DEFAULT '';
+ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS canceled_at TIMESTAMPTZ;
+UPDATE sale_orders SET status = 'active' WHERE status IS NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'sale_orders_status_check'
+  ) THEN
+    ALTER TABLE sale_orders ADD CONSTRAINT sale_orders_status_check CHECK (status IN ('active', 'canceled'));
+  END IF;
+END $$;
 
 -- รายการสินค้าในใบเบิก (Sale Order Lines)
 CREATE TABLE IF NOT EXISTS sale_order_lines (
