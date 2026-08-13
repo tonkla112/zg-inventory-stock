@@ -62,6 +62,11 @@ function isMissingCancelColumns(error) {
   return ['status', 'cancel_reason', 'canceled_at'].some(column => message.includes(column))
     && (message.includes('column') || message.includes('schema cache'));
 }
+function isMissingApprovalColumns(error) {
+  const message = String(error?.message || '').toLowerCase();
+  return ['requested_by', 'approval_status', 'approved_by', 'approved_at'].some(column => message.includes(column))
+    && (message.includes('column') || message.includes('schema cache'));
+}
 function isSOCanceled(so) {
   return so?.status === 'canceled' || !!so?.canceled || (so?.audit || []).some(entry => entry.action === 'cancel');
 }
@@ -106,12 +111,17 @@ const mapSO = (r, lines = []) => {
   const audit = getStoredSOAudit(r.id);
   const cancelAudit = [...audit].reverse().find(entry => entry.action === 'cancel') || {};
   const canceled = r.status === 'canceled' || !!r.canceled_at || !!cancelAudit.reason;
+  const approved = !!r.approved_at || !!r.approved_by || r.approval_status === 'approved';
   return {
     id: r.id, date: r.date, custCode: r.cust_code,
     shipping: +r.shipping, discount: +r.discount, sig: r.has_sig || !!normalizeSignatureData(r.signature_data),
     signatureData: normalizeSignatureData(r.signature_data) || getStoredSignature(r.id),
     lines: lines.map(l => ({ id: l.id, code: l.item_code, qty: l.qty, price: +l.price })),
     status: canceled ? 'canceled' : (r.status || 'active'),
+    requestedBy: r.requested_by || '',
+    approvalStatus: canceled ? 'canceled' : approved ? 'approved' : (r.approval_status || 'pending'),
+    approvedBy: r.approved_by || '',
+    approvedAt: r.approved_at || '',
     canceled,
     canceledAt: r.canceled_at || cancelAudit.at || '',
     cancelReason: r.cancel_reason || cancelAudit.reason || '',
@@ -124,7 +134,15 @@ function soHeaderRow(so, signatureData, hasSignature) {
     date: so.date, cust_code: so.custCode,
     shipping: so.shipping || 0, discount: so.discount || 0,
     has_sig: hasSignature, signature_data: signatureData,
+    requested_by: so.requestedBy || '',
+    approval_status: so.approvalStatus || (so.approvedBy || so.approvedAt ? 'approved' : 'pending'),
+    approved_by: so.approvedBy || '',
+    approved_at: so.approvedAt || null,
   };
+}
+function withoutApprovalColumns(row) {
+  const { requested_by, approval_status, approved_by, approved_at, ...fallbackRow } = row;
+  return fallbackRow;
 }
 function soLineRows(id, lines) {
   return (lines || []).map(l => ({ so_id: id, item_code: l.code, qty: +l.qty || 0, price: l.price || 0 }));
@@ -205,19 +223,26 @@ function useStore() {
       const id = nextId('SO', stateRef.current.sos);
       const signatureData = normalizeSignatureData(so.signatureData);
       const hasSignature = !!so.sig || !!signatureData;
-      const nextSO = { ...so, id, sig: hasSignature, signatureData, audit: [] };
-      setState(s => ({ ...s, sos: [nextSO, ...s.sos] }));
-      const headerRow = {
-        id, date: so.date, cust_code: so.custCode,
-        shipping: so.shipping || 0, discount: so.discount || 0,
-        has_sig: hasSignature, signature_data: signatureData,
+      const nextSO = {
+        ...so,
+        id,
+        sig: hasSignature,
+        signatureData,
+        requestedBy: so.requestedBy || '',
+        approvalStatus: so.approvalStatus || 'pending',
+        approvedBy: so.approvedBy || '',
+        approvedAt: so.approvedAt || '',
+        audit: [],
       };
+      setState(s => ({ ...s, sos: [nextSO, ...s.sos] }));
+      const headerRow = { id, ...soHeaderRow(nextSO, signatureData, hasSignature) };
       let { error: e1 } = await _db().from('sale_orders').insert(headerRow);
       if (isMissingSignatureColumn(e1)) {
-        const fallbackRow = {
-          id: headerRow.id, date: headerRow.date, cust_code: headerRow.cust_code,
-          shipping: headerRow.shipping, discount: headerRow.discount, has_sig: headerRow.has_sig,
-        };
+        const { signature_data, ...fallbackRow } = headerRow;
+        ({ error: e1 } = await _db().from('sale_orders').insert(fallbackRow));
+      }
+      if (isMissingApprovalColumns(e1)) {
+        const fallbackRow = withoutApprovalColumns(headerRow);
         ({ error: e1 } = await _db().from('sale_orders').insert(fallbackRow));
       }
       if (e1) {
@@ -270,6 +295,9 @@ function useStore() {
         const { signature_data, ...fallbackRow } = headerRow;
         ({ error: e1 } = await _db().from('sale_orders').update(fallbackRow).eq('id', id));
       }
+      if (isMissingApprovalColumns(e1)) {
+        ({ error: e1 } = await _db().from('sale_orders').update(withoutApprovalColumns(headerRow)).eq('id', id));
+      }
       if (e1) {
         setState(s => ({ ...s, sos: prevSos }));
         Toast.push('แก้ไข SO ไม่สำเร็จ: ' + e1.message, 'danger');
@@ -301,6 +329,46 @@ function useStore() {
       else removeStoredSignature(id);
       appendStoredSOAudit(id, auditEntry);
       await loadAll();
+      return true;
+    },
+
+    async approveSO(id, approvedBy) {
+      const prevSos = stateRef.current.sos;
+      const so = prevSos.find(s => s.id === id);
+      if (!so) return false;
+      if (so.canceled) {
+        Toast.push('ไม่สามารถอนุมัติ SO ที่ยกเลิกแล้ว', 'danger');
+        return false;
+      }
+      if (!so.sig) {
+        Toast.push('กรุณาให้ผู้รับสินค้าเซ็นก่อนอนุมัติ', 'danger');
+        return false;
+      }
+
+      const approvedAt = new Date().toISOString();
+      const cleanApprovedBy = String(approvedBy || '').trim() || 'Approver';
+      const auditEntry = { action: 'approve', reason: `Approved by ${cleanApprovedBy}` };
+      const approvedSO = {
+        ...so,
+        approvalStatus: 'approved',
+        approvedBy: cleanApprovedBy,
+        approvedAt,
+        audit: [...(so.audit || []), { at: approvedAt, ...auditEntry }],
+      };
+
+      setState(s => ({ ...s, sos: s.sos.map(x => x.id === id ? approvedSO : x) }));
+      let { error } = await _db().from('sale_orders').update({
+        approval_status: 'approved',
+        approved_by: cleanApprovedBy,
+        approved_at: approvedAt,
+      }).eq('id', id);
+      if (isMissingApprovalColumns(error)) error = null;
+      if (error) {
+        setState(s => ({ ...s, sos: prevSos }));
+        Toast.push('อนุมัติ SO ไม่สำเร็จ: ' + error.message, 'danger');
+        return false;
+      }
+      appendStoredSOAudit(id, auditEntry);
       return true;
     },
 

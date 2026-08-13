@@ -356,6 +356,46 @@ async function run() {
     ok(supabase.calls.some(c => c.table === 'sale_orders' && c.op === 'update' && c.val === 'SO10008' && c.patch.signature_data === 'data:image/png;base64,new'), 'replacement signature image saved');
   }
 
+  console.log('approveSO — rejects unsigned document');
+  {
+    const toastLog = [];
+    const seed = {
+      items: [], customers: [],
+      purchase_orders: [],
+      sale_orders: [{ id: 'SO10009', date: '2026-07-01', cust_code: 'CUST0001', shipping: 0, discount: 0, has_sig: false }],
+      sale_order_lines: [{ id: 11, so_id: 'SO10009', item_code: 'ITM-1001', qty: 1, price: 100 }],
+    };
+    const supabase = makeSupabase(seed);
+    const store = loadStore({ supabase, toastLog });
+    await store.flush();
+
+    const result = await store.get().actions.approveSO('SO10009', 'Admin User');
+
+    ok(result === false, 'approveSO rejects unsigned SO');
+    ok(!supabase.calls.some(c => c.table === 'sale_orders' && c.op === 'update'), 'no approval update attempted');
+    ok(toastLog.some(t => t.tone === 'danger'), 'error toast shown for missing signature');
+  }
+
+  console.log('approveSO — saves approver details');
+  {
+    const toastLog = [];
+    const seed = {
+      items: [], customers: [],
+      purchase_orders: [],
+      sale_orders: [{ id: 'SO10010', date: '2026-07-01', cust_code: 'CUST0001', shipping: 0, discount: 0, has_sig: true, approval_status: 'pending' }],
+      sale_order_lines: [{ id: 12, so_id: 'SO10010', item_code: 'ITM-1001', qty: 1, price: 100 }],
+    };
+    const supabase = makeSupabase(seed);
+    const store = loadStore({ supabase, toastLog });
+    await store.flush();
+
+    const result = await store.get().actions.approveSO('SO10010', 'Admin User');
+
+    ok(result === true, 'approveSO resolves true');
+    ok(supabase.calls.some(c => c.table === 'sale_orders' && c.op === 'update' && c.val === 'SO10010' && c.patch.approval_status === 'approved'), 'approval status saved');
+    ok(supabase.calls.some(c => c.table === 'sale_orders' && c.op === 'update' && c.val === 'SO10010' && c.patch.approved_by === 'Admin User'), 'approver saved');
+  }
+
   console.log('cancelSO — keeps SO history with canceled status');
   {
     const toastLog = [];

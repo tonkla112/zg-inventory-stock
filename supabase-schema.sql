@@ -54,6 +54,10 @@ CREATE TABLE IF NOT EXISTS sale_orders (
   status      TEXT DEFAULT 'active' CHECK (status IN ('active', 'canceled')),
   cancel_reason TEXT DEFAULT '',
   canceled_at TIMESTAMPTZ,
+  requested_by TEXT DEFAULT '',
+  approval_status TEXT DEFAULT 'pending',
+  approved_by TEXT DEFAULT '',
+  approved_at TIMESTAMPTZ,
   created_at  TIMESTAMPTZ DEFAULT now()
 );
 
@@ -62,7 +66,12 @@ ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS signature_data TEXT DEFAULT '';
 ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
 ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS cancel_reason TEXT DEFAULT '';
 ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS canceled_at TIMESTAMPTZ;
+ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS requested_by TEXT DEFAULT '';
+ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS approval_status TEXT DEFAULT 'pending';
+ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS approved_by TEXT DEFAULT '';
+ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
 UPDATE sale_orders SET status = 'active' WHERE status IS NULL;
+UPDATE sale_orders SET approval_status = 'pending' WHERE approval_status IS NULL;
 DO $$
 BEGIN
   IF NOT EXISTS (

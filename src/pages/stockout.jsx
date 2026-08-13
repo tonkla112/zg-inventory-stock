@@ -12,6 +12,7 @@ function buildSOPrintHTML(so, items, customers, lang) {
   const net = subtotal + (so.shipping || 0) - (so.discount || 0);
   const isCanceled = !!so.canceled;
   const needsResign = signatureNeedsResign(so);
+  const approved = approvalIsApproved(so);
   const savedSignature = typeof getStoredSignature === 'function' ? getStoredSignature(so.id) : '';
   const signatureData = typeof so.signatureData === 'string' && so.signatureData.startsWith('data:image/')
     ? so.signatureData
@@ -69,6 +70,12 @@ function buildSOPrintHTML(so, items, customers, lang) {
           <td style="padding:6px 10px;font-weight:600;">${t('ส่วนลด', 'Discount')}</td>
           <td style="padding:6px 10px;">${fmtTHB(so.discount || 0)}</td>
         </tr>
+        <tr>
+          <td style="padding:6px 10px;font-weight:600;">${t('ผู้เบิก', 'Requested by')}</td>
+          <td style="padding:6px 10px;">${so.requestedBy || '—'}</td>
+          <td style="padding:6px 10px;font-weight:600;">${t('ผู้อนุมัติ', 'Approved by')}</td>
+          <td style="padding:6px 10px;color:${approved ? '#16a34a' : '#b45309'};">${approved ? (so.approvedBy || t('อนุมัติแล้ว', 'Approved')) : t('รออนุมัติ', 'Pending approval')}</td>
+        </tr>
         ${isCanceled ? `
         <tr>
           <td style="padding:6px 10px;font-weight:600;color:#991b1b;">${t('สถานะ', 'Status')}</td>
@@ -121,7 +128,7 @@ function buildSOPrintHTML(so, items, customers, lang) {
 
       <div style="display:flex;justify-content:space-between;margin-top:32px;gap:24px;">
         <div style="flex:1;text-align:center;">
-          <div style="border-top:1px solid #9ca3af;margin-top:48px;padding-top:6px;font-size:12px;color:#6b7280;">${t('ผู้เบิก / Requested by', 'Requested by / ผู้เบิก')}</div>
+          <div style="border-top:1px solid #9ca3af;margin-top:48px;padding-top:6px;font-size:12px;color:#6b7280;">${so.requestedBy || t('ผู้เบิก', 'Requested by')}<br/>${t('ผู้เบิก / Requested by', 'Requested by / ผู้เบิก')}</div>
         </div>
         <div style="flex:1;text-align:center;">
           <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">${t('ลายเซ็นผู้รับสินค้า / Recipient signature', 'Recipient signature / ลายเซ็นผู้รับสินค้า')}</div>
@@ -131,13 +138,13 @@ function buildSOPrintHTML(so, items, customers, lang) {
           <div style="border-top:1px solid #9ca3af;margin-top:8px;padding-top:6px;font-size:12px;color:#6b7280;">${t('ผู้รับสินค้า / Recipient', 'Recipient / ผู้รับสินค้า')}</div>
         </div>
         <div style="flex:1;text-align:center;">
-          <div style="border-top:1px solid #9ca3af;margin-top:48px;padding-top:6px;font-size:12px;color:#6b7280;">${t('ผู้อนุมัติ / Approved by', 'Approved by / ผู้อนุมัติ')}</div>
+          <div style="border-top:1px solid #9ca3af;margin-top:48px;padding-top:6px;font-size:12px;color:#6b7280;">${approved ? (so.approvedBy || t('อนุมัติแล้ว', 'Approved')) : t('รออนุมัติ', 'Pending approval')}<br/>${t('ผู้อนุมัติ / Approved by', 'Approved by / ผู้อนุมัติ')}</div>
         </div>
       </div>
     </div>`;
 }
 
-function SODetailModal({ so, items, customers, onClose, onEdit, onCancel, onResign, lang }) {
+function SODetailModal({ so, items, customers, onClose, onEdit, onCancel, onResign, onApprove, canApprove, lang }) {
   const t = (th, en) => lang === 'en' ? en : th;
   const itemMap = new Map(items.map(i => [i.code, i]));
   const custMap = new Map(customers.map(c => [c.code, c]));
@@ -149,11 +156,14 @@ function SODetailModal({ so, items, customers, onClose, onEdit, onCancel, onResi
   const net = subtotal + (so.shipping || 0) - (so.discount || 0);
   const isCanceled = !!so.canceled;
   const needsResign = signatureNeedsResign(so);
+  const approved = approvalIsApproved(so);
+  const canApproveSO = canApprove && !isCanceled && so.sig && !needsResign && !approved;
 
   function handlePrint() {
-    if (needsResign) {
-      Toast.push(t('กรุณาเซ็นใหม่ก่อนพิมพ์เอกสารสุดท้าย', 'Please re-sign before printing the final document'), 'danger');
-      onResign?.(so);
+    const printBlock = finalPrintBlockReason(so, lang);
+    if (printBlock) {
+      Toast.push(printBlock, 'danger');
+      if (needsResign) onResign?.(so);
       return;
     }
     const html = buildSOPrintHTML(so, items, customers, lang);
@@ -174,6 +184,11 @@ function SODetailModal({ so, items, customers, onClose, onEdit, onCancel, onResi
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {canApproveSO && (
+              <Button variant="primary" size="sm" icon={<Icon.Check size={14}/>} onClick={() => onApprove?.(so)}>
+                {t('อนุมัติ', 'Approve')}
+              </Button>
+            )}
             {needsResign && (
               <Button variant="soft" size="sm" icon={<Icon.Edit size={14}/>} onClick={() => onResign?.(so)}>
                 {t('เซ็นใหม่', 'Re-sign')}
@@ -227,6 +242,19 @@ function SODetailModal({ so, items, customers, onClose, onEdit, onCancel, onResi
                   {t('เอกสารถูกแก้ไขหลังจากเซ็นแล้ว', 'Document changed after signing')}
                 </div>
               )}
+            </div>
+            <div className="bg-page rounded-lg p-3 space-y-1">
+              <div className="label-cap text-ink-faint">{t('อนุมัติ', 'Approval')}</div>
+              <Badge tone={approved ? 'good' : 'warn'} size="sm">
+                {approvalStatusLabel(so, lang)}
+              </Badge>
+              <div className="mt-1 text-[11.5px] text-ink-faint">
+                {approved ? (so.approvedBy || t('อนุมัติแล้ว', 'Approved')) : t('รอผู้ดูแลคลังอนุมัติ', 'Waiting for stock manager approval')}
+              </div>
+            </div>
+            <div className="bg-page rounded-lg p-3 space-y-1">
+              <div className="label-cap text-ink-faint">{t('ผู้เบิก', 'Requested by')}</div>
+              <div>{so.requestedBy || <span className="text-ink-faint">—</span>}</div>
             </div>
           </div>
 
@@ -397,9 +425,12 @@ function SOEditModal({ so, items, customers, onClose, onSave, lang }) {
       discount: +form.discount || 0,
       sig: signedDocumentChanged ? false : so.sig,
       signatureData: signedDocumentChanged ? '' : so.signatureData,
+      approvalStatus: signedDocumentChanged ? 'pending' : so.approvalStatus,
+      approvedBy: signedDocumentChanged ? '' : so.approvedBy,
+      approvedAt: signedDocumentChanged ? '' : so.approvedAt,
       lines: validLines.map(line => ({ id: line.id, code: line.code, qty: +line.qty, price: line.price || 0 })),
     }, signedDocumentChanged
-      ? `${cleanReason} · ${t('ล้างลายเซ็นเดิมเพื่อให้เซ็นใหม่', 'Old signature cleared for re-signing')}`
+      ? `${cleanReason} · ${t('ล้างลายเซ็นเดิมและยกเลิกอนุมัติเดิมเพื่อให้เซ็น/อนุมัติใหม่', 'Old signature and approval cleared for re-signing and re-approval')}`
       : cleanReason);
     setBusy(false);
     if (ok) onClose();
@@ -438,8 +469,8 @@ function SOEditModal({ so, items, customers, onClose, onSave, lang }) {
                 </div>
                 <div className="mt-1">
                   {signedDocumentChanged
-                    ? t('เมื่อบันทึก ระบบจะล้างลายเซ็นเดิม เพื่อให้ผู้รับสินค้าเซ็นใหม่กับข้อมูลล่าสุด', 'Saving will clear the old signature so the recipient can sign again for the latest information.')
-                    : t('หากแก้ไขวันที่ ผู้รับ รายการสินค้า ค่าขนส่ง หรือส่วนลด ระบบจะต้องให้เซ็นใหม่', 'If date, recipient, item lines, shipping, or discount changes, the document must be signed again.')}
+                    ? t('เมื่อบันทึก ระบบจะล้างลายเซ็นและการอนุมัติเดิม เพื่อให้เซ็นและอนุมัติใหม่กับข้อมูลล่าสุด', 'Saving will clear the old signature and approval so the latest information can be signed and approved again.')
+                    : t('หากแก้ไขวันที่ ผู้รับ รายการสินค้า ค่าขนส่ง หรือส่วนลด ระบบจะต้องให้เซ็นและอนุมัติใหม่', 'If date, recipient, item lines, shipping, or discount changes, the document must be signed and approved again.')}
                 </div>
                 {signedDocumentChanged && (
                   <label className="mt-2 flex items-center gap-2 text-[12.5px] font-medium">
@@ -449,7 +480,7 @@ function SOEditModal({ so, items, customers, onClose, onSave, lang }) {
                       onChange={e => setClearSignatureAccepted(e.target.checked)}
                       className="h-4 w-4 rounded border-line2 accent-brand-500"
                     />
-                    <span>{t('ยืนยันให้ล้างลายเซ็นเดิม และให้เซ็นใหม่หลังบันทึก', 'Clear old signature and require re-signing after save')}</span>
+                    <span>{t('ยืนยันให้ล้างลายเซ็น/อนุมัติเดิม และให้เซ็นใหม่หลังบันทึก', 'Clear old signature/approval and require re-signing after save')}</span>
                   </label>
                 )}
               </div>
@@ -613,6 +644,10 @@ function SOResignModal({ so, items, customers, onClose, onSave, lang }) {
       discount: +so.discount || 0,
       sig: true,
       signatureData,
+      requestedBy: so.requestedBy || '',
+      approvalStatus: 'pending',
+      approvedBy: '',
+      approvedAt: '',
       lines: so.lines.map(line => ({ id: line.id, code: line.code, qty: +line.qty, price: line.price || 0 })),
     }, cleanReason);
     setBusy(false);
@@ -743,6 +778,11 @@ function SOSaveConfirmation({ so, items, customers, onClose, onView, lang }) {
   const net = subtotal + (so.shipping || 0) - (so.discount || 0);
 
   function handlePrint() {
+    const printBlock = finalPrintBlockReason(so, lang);
+    if (printBlock) {
+      Toast.push(printBlock, 'danger');
+      return;
+    }
     const html = buildSOPrintHTML(so, items, customers, lang);
     printWindow(`${t('ใบเบิกสินค้า', 'Sale Order')} ${so.id}`, html);
   }
@@ -762,6 +802,9 @@ function SOSaveConfirmation({ so, items, customers, onClose, onView, lang }) {
                 <span className="kbd text-[18px] font-bold text-brand-700">{so.id}</span>
                 <Badge tone={so.sig ? 'good' : 'warn'} size="sm">
                   {so.sig ? t('มีลายเซ็น', 'Signed') : t('ยังไม่ได้เซ็น', 'Not signed')}
+                </Badge>
+                <Badge tone={approvalIsApproved(so) ? 'good' : 'warn'} size="sm">
+                  {approvalStatusLabel(so, lang)}
                 </Badge>
               </div>
             </div>
@@ -841,6 +884,10 @@ function matchesSOHistorySearch(so, query, itemMap, custMap) {
     c.pos,
     so.canceled ? 'canceled ยกเลิกแล้ว' : 'active ใช้งาน',
     signatureNeedsResign(so) ? 're-sign required ต้องเซ็นใหม่' : '',
+    approvalStatusLabel(so, 'en'),
+    approvalStatusLabel(so, 'th'),
+    so.requestedBy,
+    so.approvedBy,
     so.cancelReason,
     itemText,
   ].filter(Boolean).join(' ').toLowerCase().includes(q);
@@ -850,7 +897,9 @@ function signatureNeedsResign(so) {
   if (!so || so.canceled || so.sig) return false;
   return (so.audit || []).some(entry => {
     const reason = String(entry.reason || '').toLowerCase();
-    return reason.includes('old signature cleared for re-signing') || reason.includes('ล้างลายเซ็นเดิม');
+    return reason.includes('old signature cleared for re-signing')
+      || reason.includes('old signature and approval cleared')
+      || reason.includes('ล้างลายเซ็นเดิม');
   });
 }
 
@@ -859,6 +908,25 @@ function signatureStatusLabel(so, lang) {
   if (so.sig) return t('มีลายเซ็น', 'Signed');
   if (signatureNeedsResign(so)) return t('ต้องเซ็นใหม่', 'Re-sign required');
   return t('ยังไม่ได้เซ็น', 'Not signed');
+}
+
+function approvalIsApproved(so) {
+  return !so?.canceled && (so?.approvalStatus === 'approved' || !!so?.approvedAt || !!so?.approvedBy);
+}
+
+function approvalStatusLabel(so, lang) {
+  const t = (th, en) => lang === 'en' ? en : th;
+  if (so.canceled) return t('ยกเลิกแล้ว', 'Canceled');
+  return approvalIsApproved(so) ? t('อนุมัติแล้ว', 'Approved') : t('รออนุมัติ', 'Pending approval');
+}
+
+function finalPrintBlockReason(so, lang) {
+  const t = (th, en) => lang === 'en' ? en : th;
+  if (so.canceled) return '';
+  if (signatureNeedsResign(so)) return t('กรุณาเซ็นใหม่ก่อนพิมพ์เอกสารสุดท้าย', 'Please re-sign before printing the final document');
+  if (!so.sig) return t('กรุณาให้ผู้รับสินค้าเซ็นก่อนพิมพ์เอกสารสุดท้าย', 'Please capture the recipient signature before printing the final document');
+  if (!approvalIsApproved(so)) return t('กรุณาอนุมัติ SO ก่อนพิมพ์เอกสารสุดท้าย', 'Please approve the SO before printing the final document');
+  return '';
 }
 
 function escapeHTML(value) {
@@ -871,9 +939,11 @@ function escapeHTML(value) {
   }[c]));
 }
 
-function StockOutPage({ store, lang }) {
+function StockOutPage({ store, lang, auth }) {
   const t = (th, en) => lang === 'en' ? en : th;
   const { state, actions } = store;
+  const currentUserName = auth?.name || auth?.email || '';
+  const canApprove = auth?.role === 'admin';
 
   const [date, setDate] = useState(todayISO());
   const [custCode, setCustCode] = useState('');
@@ -918,6 +988,10 @@ function StockOutPage({ store, lang }) {
     if (valid.length === 0) { Toast.push(t('กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ', 'Please add at least 1 item'), 'danger'); return; }
     const soData = {
       date, custCode, shipping: +shipping || 0, discount: +discount || 0, sig: !!sigData, signatureData: sigData,
+      requestedBy: currentUserName,
+      approvalStatus: 'pending',
+      approvedBy: '',
+      approvedAt: '',
       lines: valid.map(l => ({ code: l.code, qty: +l.qty })),
     };
     const soForPrint = { ...soData, id: nextSO };
@@ -930,12 +1004,9 @@ function StockOutPage({ store, lang }) {
     }
     if (!saved) return;
     setSavedSO(soForPrint);
-    Toast.push(`${t('บันทึกใบเบิกสำเร็จ', 'Saved stock out')} ${nextSO}${emitPdf ? (t(' และเปิดเอกสารแล้ว', ' and opened document')) : ''}`);
+    Toast.push(`${t('บันทึกใบเบิกสำเร็จ', 'Saved stock out')} ${nextSO}${emitPdf ? (t(' และรออนุมัติก่อนพิมพ์', ' and is waiting approval before print')) : ''}`);
     if (emitPdf) {
-      setTimeout(() => {
-        const html = buildSOPrintHTML(soForPrint, state.items, state.customers, lang);
-        printWindow(`${t('ใบเบิกสินค้า', 'Sale Order')} ${nextSO}`, html);
-      }, 150);
+      Toast.push(finalPrintBlockReason(soForPrint, lang), 'danger');
     }
     // reset
     setLines([{ uid: 1, code:'', qty:1 }]); setCustCode(''); setShipping(0); setDiscount(0); setSigData(null);
@@ -978,6 +1049,9 @@ function StockOutPage({ store, lang }) {
       status: so.canceled ? t('ยกเลิกแล้ว', 'Canceled') : t('ใช้งาน', 'Active'),
       cancelReason: so.cancelReason || '',
       signature: signatureStatusLabel(so, lang),
+      approval: approvalStatusLabel(so, lang),
+      requestedBy: so.requestedBy || '',
+      approvedBy: so.approvedBy || '',
       itemSummary: so.lines.map(line => {
         const item = itemMap.get(line.code) || {};
         return `${line.code} ${item.name || ''} x${line.qty}`.trim();
@@ -1013,6 +1087,9 @@ function StockOutPage({ store, lang }) {
         t('สถานะ', 'Status'),
         t('เหตุผลการยกเลิก', 'Cancel Reason'),
         t('ลายเซ็น', 'Signature'),
+        t('อนุมัติ', 'Approval'),
+        t('ผู้เบิก', 'Requested by'),
+        t('ผู้อนุมัติ', 'Approved by'),
       ],
       exportHistoryRows.map(row => [
         row.so.id,
@@ -1030,6 +1107,9 @@ function StockOutPage({ store, lang }) {
         row.status,
         row.cancelReason,
         row.signature,
+        row.approval,
+        row.requestedBy,
+        row.approvedBy,
       ])
     );
     Toast.push(t('ส่งออกประวัติการเบิกเป็น CSV แล้ว', 'Withdrawal History CSV exported'));
@@ -1051,6 +1131,7 @@ function StockOutPage({ store, lang }) {
         <td class="right mono">${fmtTHB(row.net)}</td>
         <td><span class="badge ${row.so.canceled ? 'badge-out' : 'badge-in'}">${escapeHTML(row.status)}</span></td>
         <td><span class="badge ${row.so.sig ? 'badge-in' : signatureNeedsResign(row.so) ? 'badge-warn' : 'badge-out'}">${escapeHTML(row.signature)}</span></td>
+        <td><span class="badge ${approvalIsApproved(row.so) ? 'badge-in' : 'badge-warn'}">${escapeHTML(row.approval)}</span></td>
       </tr>`).join('');
     printWindow(t('รายงานประวัติการเบิกสินค้า', 'Withdrawal History Report'), `
       <div class="info-grid">
@@ -1068,11 +1149,13 @@ function StockOutPage({ store, lang }) {
           <th class="right">${t('ราคาสุทธิ', 'Net Price')}</th>
           <th>${t('สถานะ', 'Status')}</th>
           <th>${t('ลายเซ็น', 'Signature')}</th>
+          <th>${t('อนุมัติ', 'Approval')}</th>
         </tr></thead>
         <tbody>${tableRows}</tbody>
         <tfoot><tr>
           <td colspan="4" class="right">${t('รวมทั้งหมด', 'Grand Total')}</td>
           <td class="right mono brand">${fmtTHB(exportHistoryTotal)}</td>
+          <td></td>
           <td></td>
           <td></td>
         </tr></tfoot>
@@ -1095,6 +1178,18 @@ function StockOutPage({ store, lang }) {
       Toast.push(`${t('บันทึกลายเซ็นใหม่สำเร็จ', 'Re-signature saved')} ${id}`);
     }
     return ok;
+  }
+
+  async function approveSORecord(so) {
+    if (!canApprove) {
+      Toast.push(t('เฉพาะผู้ดูแลคลังเท่านั้นที่อนุมัติได้', 'Only stock managers can approve'), 'danger');
+      return;
+    }
+    const ok = await actions.approveSO(so.id, currentUserName);
+    if (ok) {
+      setViewSO(null);
+      Toast.push(`${t('อนุมัติ SO สำเร็จ', 'SO approved')} ${so.id}`);
+    }
   }
 
   async function confirmSOCancel(id, reason) {
@@ -1337,6 +1432,7 @@ function StockOutPage({ store, lang }) {
                   <th className="text-right font-medium px-3 py-2.5 label-cap">{t('ราคาสุทธิ', 'Net Price')}</th>
                   <th className="text-center font-medium px-3 py-2.5 label-cap">{t('สถานะ', 'Status')}</th>
                   <th className="text-center font-medium px-3 py-2.5 label-cap">{t('ลายเซ็น', 'Signature')}</th>
+                  <th className="text-center font-medium px-3 py-2.5 label-cap">{t('อนุมัติ', 'Approval')}</th>
                   <th className="text-center font-medium px-3 py-2.5 label-cap">Actions</th>
                 </tr>
               </thead>
@@ -1344,6 +1440,8 @@ function StockOutPage({ store, lang }) {
                 {recentSOs.map(so => {
                   const c = custMap.get(so.custCode) || {};
                   const needsResign = signatureNeedsResign(so);
+                  const approved = approvalIsApproved(so);
+                  const canApproveSO = canApprove && !so.canceled && so.sig && !needsResign && !approved;
                   const soSubtotal = so.lines.reduce((s, l) => {
                     const it = itemMap.get(l.code);
                     return s + (it ? it.sell * l.qty : 0);
@@ -1372,7 +1470,16 @@ function StockOutPage({ store, lang }) {
                         </span>
                       </td>
                       <td className="px-3 py-2.5 text-center">
+                        <Badge tone={approved ? 'good' : 'warn'} size="xs">
+                          {approvalStatusLabel(so, lang)}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
                         <div className="inline-flex items-center gap-1">
+                          {canApproveSO && (
+                            <Button variant="primary" size="xs" icon={<Icon.Check size={13}/>}
+                              onClick={() => approveSORecord(so)}>{t('อนุมัติ', 'Approve')}</Button>
+                          )}
                           {needsResign && (
                             <Button variant="soft" size="xs" icon={<Icon.Edit size={13}/>}
                               onClick={() => setResignSO(so)}>{t('เซ็นใหม่', 'Re-sign')}</Button>
@@ -1383,9 +1490,10 @@ function StockOutPage({ store, lang }) {
                             onClick={() => setEditSO(so)}>{t('แก้ไข', 'Edit')}</Button>
                           <Button variant="ghost" size="xs" icon={<Icon.Print size={13}/>}
                             onClick={() => {
-                              if (needsResign) {
-                                Toast.push(t('กรุณาเซ็นใหม่ก่อนพิมพ์เอกสารสุดท้าย', 'Please re-sign before printing the final document'), 'danger');
-                                setResignSO(so);
+                              const printBlock = finalPrintBlockReason(so, lang);
+                              if (printBlock) {
+                                Toast.push(printBlock, 'danger');
+                                if (needsResign) setResignSO(so);
                                 return;
                               }
                               const html = buildSOPrintHTML(so, state.items, state.customers, lang);
@@ -1414,6 +1522,8 @@ function StockOutPage({ store, lang }) {
           onEdit={(so) => setEditSO(so)}
           onCancel={(so) => setCancelSO(so)}
           onResign={(so) => setResignSO(so)}
+          onApprove={approveSORecord}
+          canApprove={canApprove}
           lang={lang}
         />
       )}
