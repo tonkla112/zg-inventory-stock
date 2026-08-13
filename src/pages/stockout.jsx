@@ -257,6 +257,71 @@ function SODetailModal({ so, items, customers, onClose, lang }) {
   );
 }
 
+function SOSaveConfirmation({ so, items, customers, onClose, onView, lang }) {
+  const t = (th, en) => lang === 'en' ? en : th;
+  const itemMap = new Map(items.map(i => [i.code, i]));
+  const custMap = new Map(customers.map(c => [c.code, c]));
+  const cust = custMap.get(so.custCode) || {};
+  const subtotal = so.lines.reduce((sum, line) => {
+    const item = itemMap.get(line.code);
+    return sum + (item ? item.sell * line.qty : 0);
+  }, 0);
+  const net = subtotal + (so.shipping || 0) - (so.discount || 0);
+
+  function handlePrint() {
+    const html = buildSOPrintHTML(so, items, customers, lang);
+    printWindow(`${t('ใบเบิกสินค้า', 'Sale Order')} ${so.id}`, html);
+  }
+
+  return (
+    <div className="fixed inset-0 z-[55] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-ink/40 backdrop-blur-sm" onClick={onClose}/>
+      <div className="relative w-full max-w-lg overflow-hidden rounded-card border border-line bg-white shadow-2xl">
+        <div className="px-5 py-5 border-b border-line bg-brand-50">
+          <div className="flex items-start gap-3">
+            <div className="h-10 w-10 rounded-xl bg-brand-500 text-white flex items-center justify-center shrink-0 shadow-card">
+              <Icon.Check size={20}/>
+            </div>
+            <div className="min-w-0">
+              <div className="text-[16px] font-semibold text-ink">{t('บันทึกใบเบิกสำเร็จ', 'Stock Out saved successfully')}</div>
+              <div className="mt-1 flex items-center gap-2 flex-wrap">
+                <span className="kbd text-[18px] font-bold text-brand-700">{so.id}</span>
+                <Badge tone={so.sig ? 'good' : 'warn'} size="sm">
+                  {so.sig ? t('มีลายเซ็น', 'Signed') : t('ยังไม่ได้เซ็น', 'Not signed')}
+                </Badge>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3 text-[13px]">
+            <div className="rounded-lg border border-line bg-page p-3">
+              <div className="label-cap text-ink-faint">{t('วันที่', 'Date')}</div>
+              <div className="mt-1 tabular-nums">{so.date}</div>
+            </div>
+            <div className="rounded-lg border border-line bg-page p-3 text-right">
+              <div className="label-cap text-ink-faint">{t('ราคาสุทธิ', 'Net Price')}</div>
+              <div className="mt-1 kbd text-[16px] font-bold text-brand-700">{fmtTHB(net)}</div>
+            </div>
+            <div className="col-span-2 rounded-lg border border-line bg-page p-3">
+              <div className="label-cap text-ink-faint">{t('ผู้รับสินค้า', 'Recipient')}</div>
+              <div className="mt-1 font-medium">{cust.name || so.custCode}</div>
+              <div className="mt-0.5 text-[12px] text-ink-mute">{cust.dept || '—'}{cust.pos ? ` · ${cust.pos}` : ''}</div>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-2 pt-1">
+            <Button variant="ghost" onClick={onClose}>{t('ปิด', 'Close')}</Button>
+            <Button variant="soft" icon={<Icon.Eye size={15}/>} onClick={onView}>{t('ดูเอกสาร', 'View')}</Button>
+            <Button variant="info" icon={<Icon.Print size={15}/>} onClick={handlePrint}>{t('พิมพ์ / PDF', 'Print / PDF')}</Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StockOutPage({ store, lang }) {
   const t = (th, en) => lang === 'en' ? en : th;
   const { state, actions } = store;
@@ -268,6 +333,8 @@ function StockOutPage({ store, lang }) {
   const [discount, setDiscount] = useState(0);
   const [sigData, setSigData] = useState(null);
   const [viewSO, setViewSO] = useState(null);
+  const [savedSO, setSavedSO] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   const itemMap = useMemo(() => new Map(state.items.map(i => [i.code, i])), [state.items]);
   const custMap = useMemo(() => new Map(state.customers.map(c => [c.code, c])), [state.customers]);
@@ -290,7 +357,8 @@ function StockOutPage({ store, lang }) {
     setLines(ls => ls.length > 1 ? ls.filter(l => l.uid !== uid) : ls);
   }
 
-  function save(emitPdf=false) {
+  async function save(emitPdf=false) {
+    if (saving) return;
     if (!custCode) { Toast.push(t('กรุณาเลือกลูกค้า/ผู้รับสินค้า', 'Please select a customer / recipient'), 'danger'); return; }
     const valid = lines.filter(l => l.code && itemMap.has(l.code) && l.qty > 0);
     if (valid.length === 0) { Toast.push(t('กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ', 'Please add at least 1 item'), 'danger'); return; }
@@ -298,10 +366,18 @@ function StockOutPage({ store, lang }) {
       date, custCode, shipping: +shipping || 0, discount: +discount || 0, sig: !!sigData, signatureData: sigData,
       lines: valid.map(l => ({ code: l.code, qty: +l.qty })),
     };
-    actions.addSO(soData);
-    Toast.push(`${t('บันทึกใบขาย', 'Saved sale order')} ${nextSO}${emitPdf ? (t(' และสร้างเอกสารแล้ว', ' and document created')) : ''}`);
+    const soForPrint = { ...soData, id: nextSO };
+    setSaving(true);
+    let saved = false;
+    try {
+      saved = await actions.addSO(soData);
+    } finally {
+      setSaving(false);
+    }
+    if (!saved) return;
+    setSavedSO(soForPrint);
+    Toast.push(`${t('บันทึกใบเบิกสำเร็จ', 'Saved stock out')} ${nextSO}${emitPdf ? (t(' และเปิดเอกสารแล้ว', ' and opened document')) : ''}`);
     if (emitPdf) {
-      const soForPrint = { ...soData, id: nextSO };
       setTimeout(() => {
         const html = buildSOPrintHTML(soForPrint, state.items, state.customers, lang);
         printWindow(`${t('ใบเบิกสินค้า', 'Sale Order')} ${nextSO}`, html);
@@ -447,8 +523,8 @@ function StockOutPage({ store, lang }) {
 
         <div className="px-5 py-3 border-t border-line flex items-center justify-end gap-2 bg-page rounded-b-card">
           <Button variant="ghost" onClick={() => { setLines([{uid:1,code:'',qty:1}]); setCustCode(''); setShipping(0); setDiscount(0); setSigData(null); }}>{t('ยกเลิก', 'Cancel')}</Button>
-          <Button variant="info" icon={<Icon.PDF size={15}/>} onClick={() => save(true)}>{t('สร้างเอกสาร PDF', 'Create PDF')}</Button>
-          <Button variant="primary" icon={<Icon.Save size={15}/>} onClick={() => save(false)}>{t('บันทึก SO', 'Save SO')}</Button>
+          <Button variant="info" icon={<Icon.PDF size={15}/>} disabled={saving} onClick={() => save(true)}>{saving ? t('กำลังบันทึก...', 'Saving...') : t('สร้างเอกสาร PDF', 'Create PDF')}</Button>
+          <Button variant="primary" icon={<Icon.Save size={15}/>} disabled={saving} onClick={() => save(false)}>{saving ? t('กำลังบันทึก...', 'Saving...') : t('บันทึก SO', 'Save SO')}</Button>
         </div>
       </Card>
 
@@ -525,6 +601,17 @@ function StockOutPage({ store, lang }) {
           items={state.items}
           customers={state.customers}
           onClose={() => setViewSO(null)}
+          lang={lang}
+        />
+      )}
+
+      {savedSO && (
+        <SOSaveConfirmation
+          so={savedSO}
+          items={state.items}
+          customers={state.customers}
+          onClose={() => setSavedSO(null)}
+          onView={() => { setViewSO(savedSO); setSavedSO(null); }}
           lang={lang}
         />
       )}
