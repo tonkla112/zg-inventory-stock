@@ -166,7 +166,7 @@ function ItemDetailModal({ item, stockMap, pos, sos, customers, onClose, lang })
 }
 
 // ─── ItemsPage ────────────────────────────────────────────────────────────────
-function ItemsPage({ store, lang }) {
+function ItemsPage({ store, lang, canEdit = true }) {
   const t = (th, en) => lang === 'en' ? en : th;
   const { state, stockMap, actions } = store;
   const [q, setQ] = useState('');
@@ -235,10 +235,20 @@ function ItemsPage({ store, lang }) {
         actions={
           <React.Fragment>
             <Button variant="secondary" icon={<Icon.QR size={15}/>} size="sm" onClick={() => setScanOpen(true)}>{t('สแกน QR / Barcode', 'Scan QR / Barcode')}</Button>
-            <Button variant="primary" icon={<Icon.Plus size={15}/>} size="sm" onClick={() => setEditing('new')}>{t('เพิ่มสินค้า', 'Add Item')}</Button>
+            {canEdit ? (
+              <Button variant="primary" icon={<Icon.Plus size={15}/>} size="sm" onClick={() => setEditing('new')}>{t('เพิ่มสินค้า', 'Add Item')}</Button>
+            ) : (
+              <Badge tone="warn" size="md">{t('ดูอย่างเดียว', 'View only')}</Badge>
+            )}
           </React.Fragment>
         }
       />
+
+      {!canEdit && (
+        <div className="rounded-lg border border-amber2-bg bg-amber2-bg/40 p-3 text-[12.5px] text-amber2-fg leading-relaxed">
+          {t('บัญชี Viewer สามารถดูและค้นหาสินค้าได้ แต่ไม่สามารถเพิ่ม แก้ไข หรือลบสินค้า', 'Viewer accounts can view and search items, but cannot add, edit, or delete items.')}
+        </div>
+      )}
 
       <Card padded={false}>
         <div className="p-4 flex flex-wrap items-center gap-3 border-b border-line">
@@ -295,9 +305,13 @@ function ItemsPage({ store, lang }) {
                   <td className="px-5 py-3">
                     <div className="flex items-center justify-end gap-0.5">
                       <IconButton title={t('ดู', 'View')} icon={<Icon.Eye size={15}/>} onClick={() => setDetailItem(it)}/>
-                      <IconButton title={t('แก้ไข', 'Edit')} icon={<Icon.Edit size={15}/>} tone="brand" onClick={() => setEditing(it)}/>
-                      <IconButton title={t('ลบ', 'Delete')} icon={<Icon.Trash size={15}/>} tone="danger"
-                        onClick={() => { if (confirm(`${t('ลบสินค้า', 'Delete item')} ${it.code}?`)) { actions.delItem(it.code); Toast.push(t('ลบสินค้าแล้ว', 'Item deleted')); } }}/>
+                      {canEdit && (
+                        <React.Fragment>
+                          <IconButton title={t('แก้ไข', 'Edit')} icon={<Icon.Edit size={15}/>} tone="brand" onClick={() => setEditing(it)}/>
+                          <IconButton title={t('ลบ', 'Delete')} icon={<Icon.Trash size={15}/>} tone="danger"
+                            onClick={() => { if (confirm(`${t('ลบสินค้า', 'Delete item')} ${it.code}?`)) { actions.delItem(it.code); Toast.push(t('ลบสินค้าแล้ว', 'Item deleted')); } }}/>
+                        </React.Fragment>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -305,7 +319,7 @@ function ItemsPage({ store, lang }) {
               {pageItems.length === 0 && (
                 <tr><td colSpan="8">
                   <Empty title={t('ไม่พบสินค้า', 'No items found')} hint={t('ลองเปลี่ยนคำค้นหาหรือเพิ่มสินค้าใหม่', 'Try a different search or add a new item')}
-                    action={<Button variant="primary" icon={<Icon.Plus size={15}/>} onClick={() => setEditing('new')}>{t('เพิ่มสินค้าแรก', 'Add First Item')}</Button>}/>
+                    action={canEdit ? <Button variant="primary" icon={<Icon.Plus size={15}/>} onClick={() => setEditing('new')}>{t('เพิ่มสินค้าแรก', 'Add First Item')}</Button> : null}/>
                 </td></tr>
               )}
             </tbody>
@@ -327,7 +341,7 @@ function ItemsPage({ store, lang }) {
         </div>
       </Card>
 
-      {editing && (
+      {editing && canEdit && (
         <ItemEditor
           item={editing === 'new' ? null : editing}
           lang={lang}

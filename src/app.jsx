@@ -93,7 +93,7 @@ function MainApp({ auth, onLogout, dark, setDark, lang, setLang }) {
     switch (page) {
       case 'dashboard': return <DashboardPage store={store} nav={setPage} lang={lang}/>;
       case 'alerts':    return <AlertsPage store={store} nav={setPage} lang={lang}/>;
-      case 'items':     return <ItemsPage store={store} lang={lang}/>;
+      case 'items':     return <ItemsPage store={store} lang={lang} canEdit={can.write}/>;
       case 'stockin':   return <StockInPage store={store} lang={lang}/>;
       case 'stockout':  return <StockOutPage store={store} lang={lang} auth={auth}/>;
       case 'customers': return <CustomersPage store={store} lang={lang}/>;
