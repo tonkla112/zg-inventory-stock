@@ -65,6 +65,7 @@ function MainApp({ auth, onLogout, dark, setDark, lang, setLang }) {
     { key:'stockout',  th:'เบิกออก',     en:'Stock Out',  icon:<Icon.Outbox size={17}/>, roles:['admin','staff'] },
     { key:'customers', th:'ผู้รับสินค้า', en:'Customers',  icon:<Icon.Users size={17}/>,  badge: store.state.customers.length, roles:['admin','staff'] },
     { key:'reports',   th:'รายงาน',      en:'Reports',    icon:<Icon.Chart size={17}/> },
+    { key:'audit',     th:'ประวัติใช้งาน', en:'Audit Logs', icon:<Icon.Settings size={17}/>, roles:['admin','staff'] },
   ].filter(n => !n.roles || n.roles.includes(role)), [role, store.state.items, store.state.customers.length, store.stockMap]);
 
   // ALL hooks must be called in the same order every render — before any early returns
@@ -103,6 +104,7 @@ function MainApp({ auth, onLogout, dark, setDark, lang, setLang }) {
       case 'stockout':  return <StockOutPage store={store} lang={lang} auth={auth}/>;
       case 'customers': return <CustomersPage store={store} lang={lang}/>;
       case 'reports':   return <ReportsPage store={store} lang={lang}/>;
+      case 'audit':     return <AuditLogsPage lang={lang}/>;
       default: return null;
     }
   })();
