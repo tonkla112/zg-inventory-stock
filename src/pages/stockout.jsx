@@ -339,7 +339,34 @@ function SODetailModal({ so, items, customers, onClose, onEdit, onCancel, onResi
   );
 }
 
-function SOEditModal({ so, items, customers, onClose, onSave, lang }) {
+function sumLinesByCode(lines) {
+  const totals = new Map();
+  (lines || []).forEach(line => {
+    if (!line.code) return;
+    totals.set(line.code, (totals.get(line.code) || 0) + (+line.qty || 0));
+  });
+  return totals;
+}
+function findStockShortage(lines, stockMap, originalLines = [], itemMap = new Map()) {
+  const requested = sumLinesByCode(lines);
+  const original = sumLinesByCode(originalLines);
+  for (const [code, qty] of requested.entries()) {
+    const available = (stockMap?.get?.(code) || 0) + (original.get(code) || 0);
+    if (qty > available) {
+      return { code, qty, available, item: itemMap.get(code) };
+    }
+  }
+  return null;
+}
+function stockShortageMessage(shortage, t) {
+  const itemName = shortage.item?.name ? ` · ${shortage.item.name}` : '';
+  return t(
+    `สต๊อกไม่พอสำหรับ ${shortage.code}${itemName}: ต้องการ ${fmtInt(shortage.qty)} แต่มี ${fmtInt(shortage.available)}`,
+    `Insufficient stock for ${shortage.code}${itemName}: requested ${fmtInt(shortage.qty)}, available ${fmtInt(shortage.available)}`
+  );
+}
+
+function SOEditModal({ so, items, customers, stockMap, onClose, onSave, lang }) {
   const t = (th, en) => lang === 'en' ? en : th;
   const [form, setForm] = useState(() => ({
     date: so.date,
@@ -417,6 +444,8 @@ function SOEditModal({ so, items, customers, onClose, onSave, lang }) {
     }
     const validLines = form.lines.filter(line => line.code && itemMap.has(line.code) && line.qty > 0);
     if (validLines.length === 0) { Toast.push(t('กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ', 'Please add at least 1 item'), 'danger'); return; }
+    const shortage = findStockShortage(validLines, stockMap, so.lines, itemMap);
+    if (shortage) { Toast.push(stockShortageMessage(shortage, t), 'danger'); return; }
     setBusy(true);
     const ok = await onSave(so.id, {
       date: form.date,
@@ -941,7 +970,7 @@ function escapeHTML(value) {
 
 function StockOutPage({ store, lang, auth }) {
   const t = (th, en) => lang === 'en' ? en : th;
-  const { state, actions } = store;
+  const { state, actions, stockMap } = store;
   const currentUserName = auth?.name || auth?.email || '';
   const canApprove = auth?.role === 'admin';
 
@@ -986,6 +1015,8 @@ function StockOutPage({ store, lang, auth }) {
     if (!custCode) { Toast.push(t('กรุณาเลือกลูกค้า/ผู้รับสินค้า', 'Please select a customer / recipient'), 'danger'); return; }
     const valid = lines.filter(l => l.code && itemMap.has(l.code) && l.qty > 0);
     if (valid.length === 0) { Toast.push(t('กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ', 'Please add at least 1 item'), 'danger'); return; }
+    const shortage = findStockShortage(valid, stockMap, [], itemMap);
+    if (shortage) { Toast.push(stockShortageMessage(shortage, t), 'danger'); return; }
     const soData = {
       date, custCode, shipping: +shipping || 0, discount: +discount || 0, sig: !!sigData, signatureData: sigData,
       requestedBy: currentUserName,
@@ -1533,6 +1564,7 @@ function StockOutPage({ store, lang, auth }) {
           so={editSO}
           items={state.items}
           customers={state.customers}
+          stockMap={stockMap}
           onClose={() => setEditSO(null)}
           onSave={saveSOEdit}
           lang={lang}
