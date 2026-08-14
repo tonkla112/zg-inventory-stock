@@ -74,6 +74,7 @@ function AuditLogsPage({ lang }) {
       delete: t('ลบ', 'Delete'),
       cancel: t('ยกเลิก', 'Cancel'),
       approve: t('อนุมัติ', 'Approve'),
+      backup: t('สำรองข้อมูล', 'Backup'),
     };
     return labels[action] || action || '—';
   }
@@ -85,6 +86,7 @@ function AuditLogsPage({ lang }) {
       purchase_order: t('รับเข้า', 'Stock In'),
       sale_order: t('เบิกออก', 'Withdrawal'),
       sale_order_line: t('รายการเบิก', 'Withdrawal Line'),
+      system: t('ระบบ', 'System'),
     };
     return labels[entity] || entity || '—';
   }

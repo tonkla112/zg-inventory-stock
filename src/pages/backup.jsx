@@ -58,6 +58,7 @@ function BackupPage({ lang }) {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(true);
   const [lastLoaded, setLastLoaded] = useState('');
+  const [backupActivity, setBackupActivity] = useState([]);
 
   async function fetchTableRows(table) {
     let from = 0;
@@ -113,27 +114,95 @@ function BackupPage({ lang }) {
     }
   }
 
-  useEffect(() => { loadBackupTables(); }, []);
+  async function loadBackupActivity() {
+    const { data, error } = await window.ZG_SUPABASE
+      .from('audit_logs')
+      .select('*')
+      .eq('action', 'backup')
+      .eq('entity_type', 'system')
+      .order('created_at', { ascending: false })
+      .limit(8);
+
+    if (!error) setBackupActivity(data || []);
+  }
+
+  async function currentAuditActor() {
+    try {
+      const { data } = await window.ZG_SUPABASE.auth.getUser();
+      const user = data?.user || {};
+      const meta = user.user_metadata || {};
+      return {
+        actor_email: user.email || '',
+        actor_name: meta.name || user.email || '',
+        actor_role: meta.role || '',
+      };
+    } catch (e) {
+      return { actor_email: '', actor_name: '', actor_role: '' };
+    }
+  }
+
+  async function recordBackupActivity({ type, tableKey = '', rowCount = 0, filename = '' }) {
+    try {
+      const actor = await currentAuditActor();
+      const details = {
+        type,
+        table: tableKey,
+        rowCount,
+        filename,
+        counts: type === 'full' ? Object.fromEntries(BACKUP_TABLES.map(table => [table.key, tables[table.key]?.length || 0])) : {},
+      };
+      const { error } = await window.ZG_SUPABASE.from('audit_logs').insert({
+        action: 'backup',
+        entity_type: 'system',
+        entity_id: tableKey || 'full',
+        reason: type === 'full' ? 'Full backup downloaded' : `${tableKey} backup downloaded`,
+        details,
+        ...actor,
+      });
+      if (!error) await loadBackupActivity();
+    } catch (e) {}
+  }
+
+  useEffect(() => {
+    loadBackupTables();
+    loadBackupActivity();
+  }, []);
 
   const summary = useMemo(() => {
     const tableCount = BACKUP_TABLES.length;
     const loadedTables = BACKUP_TABLES.filter(table => !errors[table.key] && tables[table.key]).length;
     const totalRows = BACKUP_TABLES.reduce((sum, table) => sum + (tables[table.key]?.length || 0), 0);
-    return { tableCount, loadedTables, totalRows, errorCount: Object.keys(errors).length };
-  }, [tables, errors]);
+    const lastBackup = backupActivity[0] || null;
+    const lastBackupDate = String(lastBackup?.created_at || '').slice(0, 10);
+    const backedUpToday = lastBackupDate === todayISO();
+    return { tableCount, loadedTables, totalRows, errorCount: Object.keys(errors).length, lastBackup, backedUpToday };
+  }, [tables, errors, backupActivity]);
 
   function labelFor(table) {
     return lang === 'en' ? table.en : table.th;
   }
 
   function loadedAtText() {
-    if (!lastLoaded) return '—';
-    const dt = new Date(lastLoaded);
+    return formatBackupTime(lastLoaded);
+  }
+
+  function formatBackupTime(value) {
+    if (!value) return '—';
+    const dt = new Date(value);
     if (isNaN(dt)) return '—';
     return dt.toLocaleString('th-TH', {
       day: '2-digit', month: 'short', year: 'numeric',
       hour: '2-digit', minute: '2-digit',
     });
+  }
+
+  function backupTypeLabel(type) {
+    const labels = {
+      full: t('สำรองทั้งหมด', 'Full Backup'),
+      csv: 'CSV',
+      json: 'JSON',
+    };
+    return labels[type] || type || '—';
   }
 
   function downloadBlob(filename, body, type) {
@@ -161,11 +230,14 @@ function BackupPage({ lang }) {
   function exportTableCSV(table) {
     const headers = tableHeaders(table);
     const rows = (tables[table.key] || []).map(row => headers.map(header => serialiseCell(row?.[header])));
-    exportCSV(`ZG-${table.key}-${todayISO()}.csv`, headers, rows);
+    const filename = `ZG-${table.key}-${todayISO()}.csv`;
+    exportCSV(filename, headers, rows);
+    recordBackupActivity({ type: 'csv', tableKey: table.key, rowCount: rows.length, filename });
     Toast.push(t('ดาวน์โหลด CSV แล้ว', 'CSV downloaded'));
   }
 
   function exportTableJSON(table) {
+    const filename = `ZG-${table.key}-${todayISO()}.json`;
     const payload = {
       app: 'ZG Inventory Stock',
       table: table.key,
@@ -173,11 +245,13 @@ function BackupPage({ lang }) {
       rowCount: tables[table.key]?.length || 0,
       rows: tables[table.key] || [],
     };
-    downloadBlob(`ZG-${table.key}-${todayISO()}.json`, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
+    downloadBlob(filename, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
+    recordBackupActivity({ type: 'json', tableKey: table.key, rowCount: tables[table.key]?.length || 0, filename });
     Toast.push(t('ดาวน์โหลด JSON แล้ว', 'JSON downloaded'));
   }
 
   function exportFullBackup() {
+    const filename = `ZG-Full-Backup-${todayISO()}.json`;
     const payload = {
       app: 'ZG Inventory Stock',
       exportedAt: new Date().toISOString(),
@@ -186,7 +260,8 @@ function BackupPage({ lang }) {
       errors,
       tables,
     };
-    downloadBlob(`ZG-Full-Backup-${todayISO()}.json`, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
+    downloadBlob(filename, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
+    recordBackupActivity({ type: 'full', rowCount: summary.totalRows, filename });
     Toast.push(t('ดาวน์โหลด Backup ทั้งหมดแล้ว', 'Full backup downloaded'));
   }
 
@@ -218,6 +293,44 @@ function BackupPage({ lang }) {
         <KPI label={t('ข้อผิดพลาด', 'Errors')} labelTh={t('สถานะ', 'Status')} value={fmtInt(summary.errorCount)}
           hint={summary.errorCount ? t('มีบางตารางโหลดไม่ได้', 'Some tables need attention') : t('พร้อมสำรองข้อมูล', 'Ready to export')} icon={<Icon.Warn size={18}/>} tone={summary.errorCount ? 'danger' : 'brand'}/>
       </div>
+
+      <Card
+        title={t('สถานะการสำรองข้อมูล', 'Backup Status')}
+        subtitle={t('บันทึกจาก Audit Logs เพื่อให้รู้ว่ามีการสำรองข้อมูลล่าสุดเมื่อไหร่', 'Tracked from Audit Logs so admins can see the latest backup')}
+        action={
+          <Badge tone={summary.backedUpToday ? 'good' : 'warn'} size="md" icon={summary.backedUpToday ? <Icon.Check size={12}/> : <Icon.Warn size={12}/>}>
+            {summary.backedUpToday ? t('สำรองแล้ววันนี้', 'Backed up today') : t('ยังไม่ได้สำรองวันนี้', 'No backup today')}
+          </Badge>
+        }>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="rounded-lg border border-line bg-page/60 p-4">
+            <div className="label-cap">{t('สำรองล่าสุด', 'Last Backup')}</div>
+            <div className="mt-2 text-[18px] font-semibold">{formatBackupTime(summary.lastBackup?.created_at)}</div>
+            <div className="text-[12.5px] text-ink-mute mt-1">{backupTypeLabel(summary.lastBackup?.details?.type)}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-page/60 p-4">
+            <div className="label-cap">{t('ผู้สำรองล่าสุด', 'Last Exported By')}</div>
+            <div className="mt-2 text-[18px] font-semibold truncate">{summary.lastBackup?.actor_name || '—'}</div>
+            <div className="text-[12.5px] text-ink-mute mt-1 truncate">{summary.lastBackup?.actor_email || '—'}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-page/60 p-4">
+            <div className="label-cap">{t('ไฟล์ล่าสุด', 'Latest File')}</div>
+            <div className="mt-2 text-[14px] font-semibold truncate kbd">{summary.lastBackup?.details?.filename || '—'}</div>
+            <div className="text-[12.5px] text-ink-mute mt-1">
+              {summary.lastBackup?.details?.rowCount ? `${fmtInt(summary.lastBackup.details.rowCount)} ${t('แถว', 'rows')}` : '—'}
+            </div>
+          </div>
+        </div>
+
+        {!summary.backedUpToday && (
+          <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber2-bg bg-amber2-bg/40 px-4 py-3">
+            <Icon.Warn size={16} className="text-amber2-fg mt-0.5 shrink-0"/>
+            <div className="text-[13px] text-ink-soft">
+              {t('แนะนำให้ดาวน์โหลด Full Backup อย่างน้อยวันละครั้ง โดยเฉพาะก่อนแก้ไขข้อมูลจำนวนมาก', 'Download a full backup at least once per day, especially before large data changes.')}
+            </div>
+          </div>
+        )}
+      </Card>
 
       <Card title={t('รายการตาราง', 'Backup Tables')} subtitle={t('ดาวน์โหลดรายตารางเป็น CSV หรือ JSON', 'Download each table as CSV or JSON')} padded={false}
         action={<Badge tone={summary.errorCount ? 'warn' : 'good'} size="md">{summary.errorCount ? t('ตรวจสอบสิทธิ์', 'Check access') : t('พร้อมใช้งาน', 'Ready')}</Badge>}>
@@ -270,6 +383,41 @@ function BackupPage({ lang }) {
                     </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      <Card title={t('ประวัติสำรองล่าสุด', 'Recent Backup Activity')} subtitle={t('แสดงรายการสำรองล่าสุดจาก Audit Logs', 'Latest backup downloads from Audit Logs')} padded={false}
+        action={<Badge tone="brand" size="md">{backupActivity.length} {t('รายการ', 'records')}</Badge>}>
+        {backupActivity.length === 0 ? (
+          <Empty title={t('ยังไม่มีประวัติสำรองข้อมูล', 'No backup activity yet')} hint={t('เมื่อดาวน์โหลด Backup ระบบจะบันทึกไว้ที่นี่', 'Backup downloads will appear here')} icon={<Icon.Download/>}/>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13.5px]">
+              <thead className="bg-page border-b border-line text-ink-mute">
+                <tr>
+                  <th className="text-left font-medium px-5 py-2.5 label-cap">{t('เวลา', 'Time')}</th>
+                  <th className="text-left font-medium px-5 py-2.5 label-cap">{t('ประเภท', 'Type')}</th>
+                  <th className="text-left font-medium px-5 py-2.5 label-cap">{t('ตาราง', 'Table')}</th>
+                  <th className="text-left font-medium px-5 py-2.5 label-cap">{t('ผู้ใช้งาน', 'User')}</th>
+                  <th className="text-right font-medium px-5 py-2.5 label-cap">{t('จำนวน', 'Rows')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {backupActivity.map(entry => (
+                  <tr key={entry.id} className="row-hover">
+                    <td className="px-5 py-3 whitespace-nowrap text-ink-mute">{formatBackupTime(entry.created_at)}</td>
+                    <td className="px-5 py-3"><Badge tone={entry.details?.type === 'full' ? 'brand' : 'info'}>{backupTypeLabel(entry.details?.type)}</Badge></td>
+                    <td className="px-5 py-3"><span className="kbd text-[12.5px] text-brand-700">{entry.details?.table || entry.entity_id || 'full'}</span></td>
+                    <td className="px-5 py-3">
+                      <div className="font-medium">{entry.actor_name || entry.actor_email || '—'}</div>
+                      <div className="text-[12px] text-ink-faint">{entry.actor_role || '—'}</div>
+                    </td>
+                    <td className="px-5 py-3 text-right kbd">{fmtInt(entry.details?.rowCount || 0)}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
