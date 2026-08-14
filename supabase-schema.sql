@@ -135,11 +135,19 @@ DROP POLICY IF EXISTS "zg_po_insert_staff_admin" ON purchase_orders;
 DROP POLICY IF EXISTS "zg_po_update_staff_admin" ON purchase_orders;
 DROP POLICY IF EXISTS "zg_po_delete_staff_admin" ON purchase_orders;
 
+-- ลบ policy เบิกออกแบบแยกสิทธิ์ (ถ้ามี) เพื่อให้ script รันซ้ำได้
+DROP POLICY IF EXISTS "zg_so_select_auth" ON sale_orders;
+DROP POLICY IF EXISTS "zg_so_insert_staff_admin" ON sale_orders;
+DROP POLICY IF EXISTS "zg_so_update_staff_admin" ON sale_orders;
+DROP POLICY IF EXISTS "zg_so_delete_staff_admin" ON sale_orders;
+DROP POLICY IF EXISTS "zg_sol_select_auth" ON sale_order_lines;
+DROP POLICY IF EXISTS "zg_sol_insert_staff_admin" ON sale_order_lines;
+DROP POLICY IF EXISTS "zg_sol_update_staff_admin" ON sale_order_lines;
+DROP POLICY IF EXISTS "zg_sol_delete_staff_admin" ON sale_order_lines;
+
 -- ใช้ auth.uid() IS NOT NULL (รองรับทุก version ของ Supabase)
 CREATE POLICY "zg_items_auth"    ON items            USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY "zg_custs_auth"    ON customers        USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);
-CREATE POLICY "zg_so_auth"       ON sale_orders      USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);
-CREATE POLICY "zg_sol_auth"      ON sale_order_lines USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);
 
 -- รับเข้า / Restock: Viewer ดูได้เท่านั้น, Admin/Staff เท่านั้นที่เพิ่ม แก้ไข หรือลบได้
 CREATE POLICY "zg_po_select_auth"
@@ -169,6 +177,73 @@ CREATE POLICY "zg_po_update_staff_admin"
 
 CREATE POLICY "zg_po_delete_staff_admin"
   ON purchase_orders
+  FOR DELETE
+  USING (
+    auth.uid() IS NOT NULL
+    AND public.zg_current_user_role() IN ('admin', 'staff')
+  );
+
+-- เบิกออก / Withdrawal: Viewer ดูได้เท่านั้น, Admin/Staff เท่านั้นที่เพิ่ม แก้ไข ยกเลิก อนุมัติ หรือลบได้
+CREATE POLICY "zg_so_select_auth"
+  ON sale_orders
+  FOR SELECT
+  USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "zg_so_insert_staff_admin"
+  ON sale_orders
+  FOR INSERT
+  WITH CHECK (
+    auth.uid() IS NOT NULL
+    AND public.zg_current_user_role() IN ('admin', 'staff')
+  );
+
+CREATE POLICY "zg_so_update_staff_admin"
+  ON sale_orders
+  FOR UPDATE
+  USING (
+    auth.uid() IS NOT NULL
+    AND public.zg_current_user_role() IN ('admin', 'staff')
+  )
+  WITH CHECK (
+    auth.uid() IS NOT NULL
+    AND public.zg_current_user_role() IN ('admin', 'staff')
+  );
+
+CREATE POLICY "zg_so_delete_staff_admin"
+  ON sale_orders
+  FOR DELETE
+  USING (
+    auth.uid() IS NOT NULL
+    AND public.zg_current_user_role() IN ('admin', 'staff')
+  );
+
+CREATE POLICY "zg_sol_select_auth"
+  ON sale_order_lines
+  FOR SELECT
+  USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "zg_sol_insert_staff_admin"
+  ON sale_order_lines
+  FOR INSERT
+  WITH CHECK (
+    auth.uid() IS NOT NULL
+    AND public.zg_current_user_role() IN ('admin', 'staff')
+  );
+
+CREATE POLICY "zg_sol_update_staff_admin"
+  ON sale_order_lines
+  FOR UPDATE
+  USING (
+    auth.uid() IS NOT NULL
+    AND public.zg_current_user_role() IN ('admin', 'staff')
+  )
+  WITH CHECK (
+    auth.uid() IS NOT NULL
+    AND public.zg_current_user_role() IN ('admin', 'staff')
+  );
+
+CREATE POLICY "zg_sol_delete_staff_admin"
+  ON sale_order_lines
   FOR DELETE
   USING (
     auth.uid() IS NOT NULL
