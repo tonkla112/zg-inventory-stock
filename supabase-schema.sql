@@ -129,6 +129,12 @@ DROP POLICY IF EXISTS "auth_po"        ON purchase_orders;
 DROP POLICY IF EXISTS "auth_so"        ON sale_orders;
 DROP POLICY IF EXISTS "auth_sol"       ON sale_order_lines;
 
+-- ลบ policy ผู้รับสินค้าแบบแยกสิทธิ์ (ถ้ามี) เพื่อให้ script รันซ้ำได้
+DROP POLICY IF EXISTS "zg_custs_select_auth" ON customers;
+DROP POLICY IF EXISTS "zg_custs_insert_staff_admin" ON customers;
+DROP POLICY IF EXISTS "zg_custs_update_staff_admin" ON customers;
+DROP POLICY IF EXISTS "zg_custs_delete_staff_admin" ON customers;
+
 -- ลบ policy สินค้าแบบแยกสิทธิ์ (ถ้ามี) เพื่อให้ script รันซ้ำได้
 DROP POLICY IF EXISTS "zg_items_select_auth" ON items;
 DROP POLICY IF EXISTS "zg_items_insert_staff_admin" ON items;
@@ -151,8 +157,39 @@ DROP POLICY IF EXISTS "zg_sol_insert_staff_admin" ON sale_order_lines;
 DROP POLICY IF EXISTS "zg_sol_update_staff_admin" ON sale_order_lines;
 DROP POLICY IF EXISTS "zg_sol_delete_staff_admin" ON sale_order_lines;
 
--- ใช้ auth.uid() IS NOT NULL (รองรับทุก version ของ Supabase)
-CREATE POLICY "zg_custs_auth"    ON customers        USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);
+-- ผู้รับสินค้า / Recipients: Viewer ดูได้เท่านั้น, Admin/Staff เท่านั้นที่เพิ่ม แก้ไข หรือลบได้
+CREATE POLICY "zg_custs_select_auth"
+  ON customers
+  FOR SELECT
+  USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "zg_custs_insert_staff_admin"
+  ON customers
+  FOR INSERT
+  WITH CHECK (
+    auth.uid() IS NOT NULL
+    AND public.zg_current_user_role() IN ('admin', 'staff')
+  );
+
+CREATE POLICY "zg_custs_update_staff_admin"
+  ON customers
+  FOR UPDATE
+  USING (
+    auth.uid() IS NOT NULL
+    AND public.zg_current_user_role() IN ('admin', 'staff')
+  )
+  WITH CHECK (
+    auth.uid() IS NOT NULL
+    AND public.zg_current_user_role() IN ('admin', 'staff')
+  );
+
+CREATE POLICY "zg_custs_delete_staff_admin"
+  ON customers
+  FOR DELETE
+  USING (
+    auth.uid() IS NOT NULL
+    AND public.zg_current_user_role() IN ('admin', 'staff')
+  );
 
 -- สินค้า / Items: Viewer ดูได้เท่านั้น, Admin/Staff เท่านั้นที่เพิ่ม แก้ไข หรือลบได้
 CREATE POLICY "zg_items_select_auth"
