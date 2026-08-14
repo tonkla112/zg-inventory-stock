@@ -95,6 +95,20 @@ CREATE TABLE IF NOT EXISTS sale_order_lines (
 --  2. Row Level Security — เฉพาะผู้ login แล้วเข้าถึงได้
 -- ============================================================
 
+CREATE OR REPLACE FUNCTION public.zg_current_user_role()
+RETURNS TEXT
+LANGUAGE SQL
+STABLE
+AS $$
+  SELECT COALESCE(
+    auth.jwt() -> 'user_metadata' ->> 'role',
+    auth.jwt() -> 'app_metadata' ->> 'role',
+    ''
+  );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.zg_current_user_role() TO authenticated;
+
 ALTER TABLE items            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customers        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE purchase_orders  ENABLE ROW LEVEL SECURITY;
@@ -115,12 +129,51 @@ DROP POLICY IF EXISTS "auth_po"        ON purchase_orders;
 DROP POLICY IF EXISTS "auth_so"        ON sale_orders;
 DROP POLICY IF EXISTS "auth_sol"       ON sale_order_lines;
 
+-- ลบ policy รับเข้าแบบแยกสิทธิ์ (ถ้ามี) เพื่อให้ script รันซ้ำได้
+DROP POLICY IF EXISTS "zg_po_select_auth" ON purchase_orders;
+DROP POLICY IF EXISTS "zg_po_insert_staff_admin" ON purchase_orders;
+DROP POLICY IF EXISTS "zg_po_update_staff_admin" ON purchase_orders;
+DROP POLICY IF EXISTS "zg_po_delete_staff_admin" ON purchase_orders;
+
 -- ใช้ auth.uid() IS NOT NULL (รองรับทุก version ของ Supabase)
 CREATE POLICY "zg_items_auth"    ON items            USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY "zg_custs_auth"    ON customers        USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);
-CREATE POLICY "zg_po_auth"       ON purchase_orders  USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY "zg_so_auth"       ON sale_orders      USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY "zg_sol_auth"      ON sale_order_lines USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);
+
+-- รับเข้า / Restock: Viewer ดูได้เท่านั้น, Admin/Staff เท่านั้นที่เพิ่ม แก้ไข หรือลบได้
+CREATE POLICY "zg_po_select_auth"
+  ON purchase_orders
+  FOR SELECT
+  USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "zg_po_insert_staff_admin"
+  ON purchase_orders
+  FOR INSERT
+  WITH CHECK (
+    auth.uid() IS NOT NULL
+    AND public.zg_current_user_role() IN ('admin', 'staff')
+  );
+
+CREATE POLICY "zg_po_update_staff_admin"
+  ON purchase_orders
+  FOR UPDATE
+  USING (
+    auth.uid() IS NOT NULL
+    AND public.zg_current_user_role() IN ('admin', 'staff')
+  )
+  WITH CHECK (
+    auth.uid() IS NOT NULL
+    AND public.zg_current_user_role() IN ('admin', 'staff')
+  );
+
+CREATE POLICY "zg_po_delete_staff_admin"
+  ON purchase_orders
+  FOR DELETE
+  USING (
+    auth.uid() IS NOT NULL
+    AND public.zg_current_user_role() IN ('admin', 'staff')
+  );
 
 -- ============================================================
 --  3. Seed Data — ข้อมูลตัวอย่างเริ่มต้น
