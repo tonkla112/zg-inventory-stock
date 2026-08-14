@@ -91,6 +91,23 @@ CREATE TABLE IF NOT EXISTS sale_order_lines (
   created_at  TIMESTAMPTZ DEFAULT now()
 );
 
+-- ประวัติการเปลี่ยนแปลงในระบบ (Audit Logs)
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id           BIGSERIAL PRIMARY KEY,
+  action       TEXT NOT NULL,
+  entity_type  TEXT NOT NULL,
+  entity_id    TEXT NOT NULL DEFAULT '',
+  reason       TEXT DEFAULT '',
+  actor_email  TEXT DEFAULT '',
+  actor_name   TEXT DEFAULT '',
+  actor_role   TEXT DEFAULT '',
+  details      JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at   TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS audit_logs_created_at_idx ON audit_logs (created_at DESC);
+CREATE INDEX IF NOT EXISTS audit_logs_entity_idx ON audit_logs (entity_type, entity_id);
+
 -- ============================================================
 --  2. Row Level Security — เฉพาะผู้ login แล้วเข้าถึงได้
 -- ============================================================
@@ -114,6 +131,7 @@ ALTER TABLE customers        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE purchase_orders  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sale_orders      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sale_order_lines ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_logs       ENABLE ROW LEVEL SECURITY;
 
 -- ลบ policy เก่าก่อน (ถ้ามี) แล้วสร้างใหม่ — รัน script นี้กี่ครั้งก็ได้
 DROP POLICY IF EXISTS "zg_items_auth"  ON items;
@@ -121,6 +139,7 @@ DROP POLICY IF EXISTS "zg_custs_auth"  ON customers;
 DROP POLICY IF EXISTS "zg_po_auth"     ON purchase_orders;
 DROP POLICY IF EXISTS "zg_so_auth"     ON sale_orders;
 DROP POLICY IF EXISTS "zg_sol_auth"    ON sale_order_lines;
+DROP POLICY IF EXISTS "zg_audit_auth"  ON audit_logs;
 
 -- ลบ policy ชื่อเก่า (จากการรันครั้งก่อน) ด้วย
 DROP POLICY IF EXISTS "auth_items"     ON items;
@@ -128,6 +147,7 @@ DROP POLICY IF EXISTS "auth_customers" ON customers;
 DROP POLICY IF EXISTS "auth_po"        ON purchase_orders;
 DROP POLICY IF EXISTS "auth_so"        ON sale_orders;
 DROP POLICY IF EXISTS "auth_sol"       ON sale_order_lines;
+DROP POLICY IF EXISTS "auth_audit"     ON audit_logs;
 
 -- ลบ policy ผู้รับสินค้าแบบแยกสิทธิ์ (ถ้ามี) เพื่อให้ script รันซ้ำได้
 DROP POLICY IF EXISTS "zg_custs_select_auth" ON customers;
@@ -156,6 +176,10 @@ DROP POLICY IF EXISTS "zg_sol_select_auth" ON sale_order_lines;
 DROP POLICY IF EXISTS "zg_sol_insert_staff_admin" ON sale_order_lines;
 DROP POLICY IF EXISTS "zg_sol_update_staff_admin" ON sale_order_lines;
 DROP POLICY IF EXISTS "zg_sol_delete_staff_admin" ON sale_order_lines;
+
+-- ลบ policy audit log แบบแยกสิทธิ์ (ถ้ามี) เพื่อให้ script รันซ้ำได้
+DROP POLICY IF EXISTS "zg_audit_select_staff_admin" ON audit_logs;
+DROP POLICY IF EXISTS "zg_audit_insert_staff_admin" ON audit_logs;
 
 -- ผู้รับสินค้า / Recipients: Viewer ดูได้เท่านั้น, Admin/Staff เท่านั้นที่เพิ่ม แก้ไข หรือลบได้
 CREATE POLICY "zg_custs_select_auth"
@@ -322,6 +346,23 @@ CREATE POLICY "zg_sol_delete_staff_admin"
   ON sale_order_lines
   FOR DELETE
   USING (
+    auth.uid() IS NOT NULL
+    AND public.zg_current_user_role() IN ('admin', 'staff')
+  );
+
+-- Audit Logs: Admin/Staff ดูและบันทึกประวัติได้, Viewer ไม่เห็นประวัติระบบ
+CREATE POLICY "zg_audit_select_staff_admin"
+  ON audit_logs
+  FOR SELECT
+  USING (
+    auth.uid() IS NOT NULL
+    AND public.zg_current_user_role() IN ('admin', 'staff')
+  );
+
+CREATE POLICY "zg_audit_insert_staff_admin"
+  ON audit_logs
+  FOR INSERT
+  WITH CHECK (
     auth.uid() IS NOT NULL
     AND public.zg_current_user_role() IN ('admin', 'staff')
   );

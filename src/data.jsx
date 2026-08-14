@@ -147,6 +147,36 @@ function withoutApprovalColumns(row) {
 function soLineRows(id, lines) {
   return (lines || []).map(l => ({ so_id: id, item_code: l.code, qty: +l.qty || 0, price: l.price || 0 }));
 }
+async function currentAuditActor() {
+  try {
+    const { data } = await _db().auth.getUser();
+    const user = data?.user || {};
+    const meta = user.user_metadata || {};
+    return {
+      actor_email: user.email || '',
+      actor_name: meta.name || user.email || '',
+      actor_role: meta.role || '',
+    };
+  } catch (e) {
+    return { actor_email: '', actor_name: '', actor_role: '' };
+  }
+}
+async function writeAudit({ action, entityType, entityId = '', reason = '', details = {} }) {
+  try {
+    const actor = await currentAuditActor();
+    const { error } = await _db().from('audit_logs').insert({
+      action,
+      entity_type: entityType,
+      entity_id: String(entityId || ''),
+      reason: String(reason || ''),
+      details,
+      ...actor,
+    });
+    if (error) console.warn('ZG audit log skipped:', error.message);
+  } catch (e) {
+    console.warn('ZG audit log skipped:', e?.message || e);
+  }
+}
 
 // ---- Main store hook ----
 function useStore() {
@@ -203,11 +233,18 @@ function useStore() {
         Toast.push('บันทึก PO ไม่สำเร็จ: ' + error.message, 'danger');
         return false;
       }
+      await writeAudit({
+        action: 'create',
+        entityType: 'purchase_order',
+        entityId: id,
+        details: { date: po.date, itemCode: po.code, itemName: po.name, qty: +po.qty || 0, price: +po.price || 0 },
+      });
       return true;
     },
 
     async delPO(id) {
       const prevPOs = stateRef.current.pos;
+      const oldPO = prevPOs.find(p => p.id === id);
       setState(s => ({ ...s, pos: s.pos.filter(p => p.id !== id) }));
       const { error } = await _db().from('purchase_orders').delete().eq('id', id);
       if (error) {
@@ -215,6 +252,12 @@ function useStore() {
         Toast.push('ลบรายการรับเข้าไม่สำเร็จ: ' + error.message, 'danger');
         return false;
       }
+      await writeAudit({
+        action: 'delete',
+        entityType: 'purchase_order',
+        entityId: id,
+        details: oldPO ? { date: oldPO.date, itemCode: oldPO.code, itemName: oldPO.name, qty: oldPO.qty } : {},
+      });
       return true;
     },
 
@@ -256,6 +299,19 @@ function useStore() {
         const { error: e2 } = await _db().from('sale_order_lines').insert(rows);
         if (e2) Toast.push('บันทึก line items บางส่วนไม่สำเร็จ', 'danger');
       }
+      await writeAudit({
+        action: 'create',
+        entityType: 'sale_order',
+        entityId: id,
+        details: {
+          date: nextSO.date,
+          custCode: nextSO.custCode,
+          lineCount: (nextSO.lines || []).length,
+          hasSignature,
+          requestedBy: nextSO.requestedBy,
+          approvalStatus: nextSO.approvalStatus,
+        },
+      });
       return true;
     },
 
@@ -328,6 +384,18 @@ function useStore() {
       if (signatureData) saveStoredSignature(id, signatureData);
       else removeStoredSignature(id);
       appendStoredSOAudit(id, auditEntry);
+      await writeAudit({
+        action: 'update',
+        entityType: 'sale_order',
+        entityId: id,
+        reason: cleanReason,
+        details: {
+          date: nextSO.date,
+          custCode: nextSO.custCode,
+          lineCount: (nextSO.lines || []).length,
+          hasSignature,
+        },
+      });
       await loadAll();
       return true;
     },
@@ -369,6 +437,13 @@ function useStore() {
         return false;
       }
       appendStoredSOAudit(id, auditEntry);
+      await writeAudit({
+        action: 'approve',
+        entityType: 'sale_order',
+        entityId: id,
+        reason: auditEntry.reason,
+        details: { approvedBy: cleanApprovedBy, approvedAt },
+      });
       return true;
     },
 
@@ -406,6 +481,13 @@ function useStore() {
         return false;
       }
       appendStoredSOAudit(id, auditEntry);
+      await writeAudit({
+        action: 'cancel',
+        entityType: 'sale_order',
+        entityId: id,
+        reason: cleanReason,
+        details: { canceledAt },
+      });
       return true;
     },
 
@@ -426,6 +508,12 @@ function useStore() {
           return false;
         }
         removeStoredSignature(soId);
+        await writeAudit({
+          action: 'delete',
+          entityType: 'sale_order',
+          entityId: soId,
+          details: { removedLineId: lineId, removedLastLine: true },
+        });
         return true;
       }
 
@@ -436,6 +524,12 @@ function useStore() {
         Toast.push('ลบรายการเบิกออกไม่สำเร็จ: ' + error.message, 'danger');
         return false;
       }
+      await writeAudit({
+        action: 'delete',
+        entityType: 'sale_order_line',
+        entityId: lineId,
+        details: { saleOrderId: soId, remainingLineCount: remaining.length },
+      });
       return true;
     },
 
@@ -447,6 +541,12 @@ function useStore() {
       });
       if (error) { Toast.push('เพิ่มสินค้าไม่สำเร็จ: ' + error.message, 'danger'); return false; }
       setState(s => ({ ...s, items: [...s.items, item] }));
+      await writeAudit({
+        action: 'create',
+        entityType: 'item',
+        entityId: item.code,
+        details: { name: item.name, unit: item.unit, buy: +item.buy || 0, sell: +item.sell || 0 },
+      });
       return true;
     },
 
@@ -461,12 +561,20 @@ function useStore() {
       setState(s => ({ ...s, items: s.items.map(i => i.code === code ? { ...i, ...patch } : i) }));
       const { error } = await _db().from('items').update(db).eq('code', code);
       if (error) { Toast.push('อัปเดตสินค้าไม่สำเร็จ: ' + error.message, 'danger'); loadAll(); }
+      else await writeAudit({ action: 'update', entityType: 'item', entityId: code, details: patch });
     },
 
     async delItem(code) {
+      const oldItem = stateRef.current.items.find(i => i.code === code);
       setState(s => ({ ...s, items: s.items.filter(i => i.code !== code) }));
       const { error } = await _db().from('items').delete().eq('code', code);
       if (error) { Toast.push('ลบสินค้าไม่สำเร็จ: ' + error.message, 'danger'); loadAll(); }
+      else await writeAudit({
+        action: 'delete',
+        entityType: 'item',
+        entityId: code,
+        details: oldItem ? { name: oldItem.name, unit: oldItem.unit } : {},
+      });
     },
 
     // ---- Customers ----
@@ -476,6 +584,12 @@ function useStore() {
       });
       if (error) { Toast.push('เพิ่มผู้รับสินค้าไม่สำเร็จ: ' + error.message, 'danger'); return false; }
       setState(s => ({ ...s, customers: [...s.customers, c] }));
+      await writeAudit({
+        action: 'create',
+        entityType: 'customer',
+        entityId: c.code,
+        details: { name: c.name, pos: c.pos, dept: c.dept, phone: c.phone || '' },
+      });
       return true;
     },
 
@@ -483,12 +597,20 @@ function useStore() {
       setState(s => ({ ...s, customers: s.customers.map(c => c.code === code ? { ...c, ...patch } : c) }));
       const { error } = await _db().from('customers').update(patch).eq('code', code);
       if (error) { Toast.push('อัปเดตผู้รับสินค้าไม่สำเร็จ: ' + error.message, 'danger'); loadAll(); }
+      else await writeAudit({ action: 'update', entityType: 'customer', entityId: code, details: patch });
     },
 
     async delCust(code) {
+      const oldCustomer = stateRef.current.customers.find(c => c.code === code);
       setState(s => ({ ...s, customers: s.customers.filter(c => c.code !== code) }));
       const { error } = await _db().from('customers').delete().eq('code', code);
       if (error) { Toast.push('ลบผู้รับสินค้าไม่สำเร็จ: ' + error.message, 'danger'); loadAll(); }
+      else await writeAudit({
+        action: 'delete',
+        entityType: 'customer',
+        entityId: code,
+        details: oldCustomer ? { name: oldCustomer.name, pos: oldCustomer.pos, dept: oldCustomer.dept } : {},
+      });
     },
 
     reload: loadAll,
