@@ -13,6 +13,7 @@ const sourceFiles = [
   'src/pages/customers.jsx',
   'src/pages/reports.jsx',
   'src/pages/audit.jsx',
+  'src/pages/backup.jsx',
   'src/pages/login.jsx',
   'src/app.jsx',
 ];
